@@ -7,6 +7,7 @@ from app.bot.keyboards.common import cancel_keyboard, main_menu_keyboard, tariff
 from app.bot.states import BuySubscriptionState
 from app.core.config import parse_admin_telegram_ids, settings
 from app.repositories.friend_discounts import create_friend_discount
+from app.repositories.orders import create_order, mark_order_paid
 from app.repositories.referrals import (
     count_paid_referrals,
     create_referral,
@@ -47,10 +48,23 @@ async def activate_trial_subscription(message: Message, session: AsyncSession, u
         await message.answer("Пробный тариф пока недоступен.")
         return
 
+    trial_order = await create_order(
+        session=session,
+        user_id=user.id,
+        tariff_id=trial_tariff.id,
+        amount_rub=0,
+        payment_provider="trial",
+    )
+    await mark_order_paid(
+        session=session,
+        order=trial_order,
+        payment_id=f"trial-{trial_order.id}",
+    )
+
     subscription = await create_or_extend_subscription(
         session=session,
         user=user,
-        order_id=0,
+        order_id=trial_order.id,
         tariff=trial_tariff,
         access_key_id=None,
     )
