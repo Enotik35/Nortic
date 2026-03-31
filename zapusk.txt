@@ -1,0 +1,15 @@
+Локальный запуск без секретов в файлах:
+
+1. Заполнить `.env` реальными значениями только на машине/сервере.
+2. Поднять Postgres и приложение:
+   `docker compose up --build`
+3. Для ручного запуска в PowerShell:
+   `.\venv\Scripts\Activate.ps1`
+   `alembic upgrade head`
+   `python -m app.init_data`
+   `python -m app.main`
+
+Важно:
+- Не хранить токены, пароли и приватные ключи в проектных файлах.
+- Бот использует advisory lock в Postgres, поэтому polling стартует только в одном экземпляре.
+- `python -m app.init_data` всегда заполняет тарифы и может создать/обновить сервер, если заданы `SEED_SERVER_*`.
