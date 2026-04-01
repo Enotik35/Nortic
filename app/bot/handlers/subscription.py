@@ -304,28 +304,26 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
 @router.callback_query(F.data.startswith("paid:"))
 async def paid_handler(callback: CallbackQuery, session: AsyncSession):
+    await callback.answer("Проверяю оплату...")
+
     order_id = int(callback.data.split(":")[1])
     order = await get_order_by_id(session, order_id)
 
     if not order:
         await callback.message.answer("Заказ не найден.")
-        await callback.answer()
         return
 
     user = await get_user_by_telegram_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("Пользователь не найден.")
-        await callback.answer()
         return
 
     if order.user_id != user.id and not is_admin(callback.from_user.id):
         await callback.message.answer("Этот заказ принадлежит другому пользователю.")
-        await callback.answer()
         return
 
     if order.status == "paid":
         await callback.message.answer("Этот заказ уже оплачен.")
-        await callback.answer()
         return
 
     if not settings.allow_test_payments and not is_admin(callback.from_user.id):
@@ -333,7 +331,6 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
             "⏳ Автоматическое подтверждение тестовой оплаты выключено. "
             "После интеграции платежного провайдера доступ будет выдаваться автоматически."
         )
-        await callback.answer()
         return
 
     try:
@@ -346,15 +343,12 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
         await session.rollback()
         if str(e) == "TARIFF_NOT_FOUND":
             await callback.message.answer("Тариф заказа не найден.")
-            await callback.answer()
             return
         if str(e) == "NO_ACTIVE_SERVER":
             await callback.message.answer("⚠️ Сейчас нет активного VPN-сервера. Сначала добавьте сервер в базу.")
-            await callback.answer()
             return
         if str(e) == "DEVICE_LIMIT_REACHED":
             await callback.message.answer("⚠️ Лимит устройств для этой подписки уже достигнут.")
-            await callback.answer()
             return
         raise
 
@@ -368,7 +362,6 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
     )
     await callback.message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
     await callback.message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
-    await callback.answer()
 
 
 @router.message(F.text == "📱 Моя подписка")

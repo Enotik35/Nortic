@@ -9,6 +9,7 @@ SUPPORT_URL = "https://t.me/Norticboost_admin"
 
 
 @router.message(F.text == "Инструкция")
+@router.message(F.text == "📘 Инструкция")
 async def instruction_handler(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -28,6 +29,7 @@ async def instruction_handler(message: Message):
 
 
 @router.message(F.text == "Поддержка")
+@router.message(F.text == "💬 Поддержка")
 async def support_handler(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
