@@ -111,7 +111,7 @@ async def activate_paid_order(*, session: AsyncSession, order, user):
     return subscription, access_key
 
 
-@router.message(BuySubscriptionState.waiting_for_email, F.text == "Моя подписка")
+@router.message(BuySubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
 async def my_subscription_from_email_state(
     message: Message,
     state: FSMContext,
@@ -126,20 +126,20 @@ async def my_subscription_from_email_state(
 
     subscription = await get_active_subscription(session, user.id)
     if not subscription:
-        await message.answer("Активной подписки пока нет.", reply_markup=main_menu_keyboard())
+        await message.answer("🙂 Активной подписки пока нет.", reply_markup=main_menu_keyboard())
         return
 
     access_key = await get_subscription_access_key(session, subscription)
     access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
 
     await message.answer(
-        "Ваша подписка\n\n"
+        "📱 Ваша подписка\n\n"
         f"Номер: {subscription.subscription_number}\n"
         f"Статус: {subscription.status}\n"
         f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}",
         reply_markup=main_menu_keyboard(),
     )
-    await message.answer("Ваш ключ VLESS:")
+    await message.answer("🔑 Ваш ключ VLESS:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
 
 
@@ -154,7 +154,7 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         email = valid.normalized
     except EmailNotValidError:
         await message.answer(
-            "Похоже, это не email.\n\n"
+            "😅 Похоже, это не email.\n\n"
             "Пример: name@example.com\n\n"
             "Введите email еще раз или нажмите «Отмена».",
             reply_markup=cancel_keyboard(),
@@ -176,17 +176,17 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
     if next_action == "activate_trial":
         from app.bot.handlers.start import activate_trial_subscription
 
-        await message.answer(f"Email сохранен: {email}")
+        await message.answer(f"✅ Email сохранен: {email}")
         await activate_trial_subscription(message, session, user)
         return
 
     tariffs = await get_active_tariffs(session)
     if not tariffs:
-        await message.answer("Сейчас нет доступных тарифов.", reply_markup=main_menu_keyboard())
+        await message.answer("😔 Сейчас нет доступных тарифов.", reply_markup=main_menu_keyboard())
         return
 
     await message.answer(
-        f"Email сохранен: {email}\n\nТеперь выберите подходящий тариф:",
+        f"✅ Email сохранен: {email}\n\nТеперь выберите подходящий тариф:",
         reply_markup=tariffs_keyboard(
             [
                 {
@@ -199,7 +199,7 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         ),
     )
     await message.answer(
-        "Для возврата можно нажать «Отмена» или «Главное меню».",
+        "↩️ Для возврата можно нажать «Отмена» или «Главное меню».",
         reply_markup=cancel_keyboard(),
     )
 
@@ -210,7 +210,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
     tariff = await get_tariff_by_id(session, tariff_id)
 
     if not tariff or not tariff.is_active:
-        await callback.message.answer("Тариф не найден или недоступен.")
+        await callback.message.answer("😔 Тариф не найден или недоступен.")
         await callback.answer()
         return
 
@@ -221,7 +221,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         return
 
     if not user.email:
-        await callback.message.answer("Сначала укажите email.")
+        await callback.message.answer("📧 Сначала укажите email.")
         await callback.answer()
         return
 
@@ -232,7 +232,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
         if user.trial_used:
             await callback.message.answer(
-                "Пробный период уже был использован.",
+                "🙂 Пробный период уже был использован.",
                 reply_markup=main_menu_keyboard(
                     has_active_subscription=bool(active_subscription),
                     show_trial=False,
@@ -243,7 +243,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
         if active_subscription:
             await callback.message.answer(
-                "У вас уже есть активная подписка.",
+                "ℹ️ У вас уже есть активная подписка.",
                 reply_markup=main_menu_keyboard(
                     has_active_subscription=True,
                     show_trial=False,
@@ -285,7 +285,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         )
 
     await callback.message.answer(
-        "Вы выбрали тариф:\n\n"
+        "✨ Вы выбрали тариф:\n\n"
         f"{tariff.name}\n"
         f"Срок: {tariff.duration_days} дней\n"
         f"{price_text}\n\n"
@@ -294,8 +294,9 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         reply_markup=payment_methods_keyboard(order.id, links),
     )
     await callback.message.answer(
-        "После оплаты нажмите «Проверить оплату». В боевом режиме подтверждение тестовой оплаты отключено, "
-        "поэтому доступ будет выдан только после реальной интеграции платежного провайдера или ручной проверки администратором.",
+        "💡 После оплаты нажмите «Проверить оплату».\n\n"
+        "Если тестовые оплаты отключены, доступ будет выдан после реальной интеграции "
+        "платежного провайдера или ручной проверки администратором.",
         reply_markup=cancel_keyboard(),
     )
     await callback.answer()
@@ -329,7 +330,7 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
 
     if not settings.allow_test_payments and not is_admin(callback.from_user.id):
         await callback.message.answer(
-            "Автоматическое подтверждение тестовой оплаты выключено. "
+            "⏳ Автоматическое подтверждение тестовой оплаты выключено. "
             "После интеграции платежного провайдера доступ будет выдаваться автоматически."
         )
         await callback.answer()
@@ -348,11 +349,11 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
             await callback.answer()
             return
         if str(e) == "NO_ACTIVE_SERVER":
-            await callback.message.answer("Нет активного VPN-сервера. Сначала добавьте сервер в базу.")
+            await callback.message.answer("⚠️ Сейчас нет активного VPN-сервера. Сначала добавьте сервер в базу.")
             await callback.answer()
             return
         if str(e) == "DEVICE_LIMIT_REACHED":
-            await callback.message.answer("Лимит устройств для этой подписки уже достигнут.")
+            await callback.message.answer("⚠️ Лимит устройств для этой подписки уже достигнут.")
             await callback.answer()
             return
         raise
@@ -360,17 +361,17 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
     access_key_value = access_key.vless_uri or access_key.key_value
 
     await callback.message.answer(
-        "Оплата подтверждена.\n\n"
+        "✅ Оплата подтверждена!\n\n"
         f"Подписка №{subscription.subscription_number}\n"
         f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        "Ваш ключ VLESS:"
+        "🔑 Ваш ключ VLESS:"
     )
     await callback.message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
-    await callback.message.answer("Скопируйте ключ и импортируйте его в Happ.")
+    await callback.message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
     await callback.answer()
 
 
-@router.message(F.text == "Моя подписка")
+@router.message(F.text == "📱 Моя подписка")
 async def my_subscription_handler(message: Message, session: AsyncSession):
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
@@ -379,23 +380,23 @@ async def my_subscription_handler(message: Message, session: AsyncSession):
 
     subscription = await get_active_subscription(session, user.id)
     if not subscription:
-        await message.answer("Активной подписки пока нет.")
+        await message.answer("🙂 Активной подписки пока нет.")
         return
 
     access_key = await get_subscription_access_key(session, subscription)
     access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
 
     await message.answer(
-        "Ваша подписка\n\n"
+        "📱 Ваша подписка\n\n"
         f"Подписка №{subscription.subscription_number}\n"
         f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        "Ваш ключ VLESS:"
+        "🔑 Ваш ключ VLESS:"
     )
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
-    await message.answer("Скопируйте ключ и импортируйте его в Happ.")
+    await message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
 
-@router.message(F.text == "Изменить email")
+@router.message(F.text == "✉️ Изменить email")
 async def change_email_start_handler(message: Message, state: FSMContext, session: AsyncSession):
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
@@ -406,7 +407,7 @@ async def change_email_start_handler(message: Message, state: FSMContext, sessio
 
     await state.set_state(ChangeEmailState.waiting_for_new_email)
     await message.answer(
-        f"Текущий email: {current_email}\n\nВведите новый email:",
+        f"✉️ Текущий email: {current_email}\n\nВведите новый email:",
         reply_markup=cancel_keyboard(),
     )
 
@@ -422,7 +423,9 @@ async def change_email_input_handler(message: Message, state: FSMContext, sessio
         email = valid.normalized
     except EmailNotValidError:
         await message.answer(
-            "Похоже, это не email.\n\nПример: name@example.com\n\nВведите email еще раз или нажмите «Отмена».",
+            "😅 Похоже, это не email.\n\n"
+            "Пример: name@example.com\n\n"
+            "Введите email еще раз или нажмите «Отмена».",
             reply_markup=cancel_keyboard(),
         )
         return
@@ -438,6 +441,6 @@ async def change_email_input_handler(message: Message, state: FSMContext, sessio
 
     active_subscription = await get_active_subscription(session, user.id)
     await message.answer(
-        f"Email обновлен: {email}",
+        f"✅ Email обновлен: {email}",
         reply_markup=main_menu_keyboard(has_active_subscription=bool(active_subscription)),
     )

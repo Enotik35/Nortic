@@ -12,16 +12,17 @@ SUPPORT_URL = "https://t.me/Norticboost_admin"
 async def instruction_handler(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Открыть инструкцию", url=INSTRUCTION_URL)]
+            [InlineKeyboardButton(text="📘 Открыть инструкцию", url=INSTRUCTION_URL)]
         ]
     )
 
     await message.answer(
-        "Инструкция по установке и подключению доступна в канале.\n\n"
+        "📘 Инструкция по установке и подключению уже готова.\n\n"
         "Там вы найдете:\n"
         "• как установить приложение\n"
         "• как импортировать ключ\n"
-        "• что делать, если VPN не подключается",
+        "• что делать, если VPN не подключается\n\n"
+        "Откройте инструкцию по кнопке ниже 👇",
         reply_markup=kb,
     )
 
@@ -30,11 +31,12 @@ async def instruction_handler(message: Message):
 async def support_handler(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Написать в поддержку", url=SUPPORT_URL)]
+            [InlineKeyboardButton(text="💬 Написать в поддержку", url=SUPPORT_URL)]
         ]
     )
 
     await message.answer(
-        "Если возникли сложности с подключением, оплатой или работой сервиса, напишите в поддержку.",
+        "💬 Если возникли сложности с подключением, оплатой или работой сервиса, "
+        "напишите в поддержку. Поможем разобраться.",
         reply_markup=kb,
     )
