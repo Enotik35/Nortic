@@ -12,7 +12,7 @@ from app.bot.keyboards.common import (
     payment_methods_keyboard,
     tariffs_keyboard,
 )
-from app.bot.states import BuySubscriptionState, ChangeEmailState
+from app.bot.states import BuySubscriptionState, ChangeEmailState, TrialSubscriptionState
 from app.core.config import settings
 from app.models.access_key import AccessKey
 from app.repositories.access_keys import get_latest_access_key_by_subscription
@@ -112,6 +112,7 @@ async def activate_paid_order(*, session: AsyncSession, order, user):
 
 
 @router.message(BuySubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
+@router.message(TrialSubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
 async def my_subscription_from_email_state(
     message: Message,
     state: FSMContext,
@@ -167,18 +168,8 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         await state.clear()
         return
 
-    state_data = await state.get_data()
-    next_action = state_data.get("next_action")
-
     await update_user_email(session, user, email)
     await state.clear()
-
-    if next_action == "activate_trial":
-        from app.bot.handlers.start import activate_trial_subscription
-
-        await message.answer(f"✅ Email сохранен: {email}")
-        await activate_trial_subscription(message, session, user)
-        return
 
     tariffs = await get_active_tariffs(session)
     if not tariffs:
@@ -202,6 +193,40 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         "↩️ Для возврата можно нажать «Отмена» или «Главное меню».",
         reply_markup=cancel_keyboard(),
     )
+
+
+@router.message(TrialSubscriptionState.waiting_for_email)
+async def trial_email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
+        return
+
+    try:
+        valid = validate_email(message.text.strip(), check_deliverability=False)
+        email = valid.normalized
+    except EmailNotValidError:
+        await message.answer(
+            "😅 Похоже, это не email.\n\n"
+            "Пример: name@example.com\n\n"
+            "Введите email еще раз или нажмите «Отмена».",
+            reply_markup=cancel_keyboard(),
+        )
+        return
+
+    user = await get_user_by_telegram_id(session, message.from_user.id)
+    if not user:
+        await message.answer("Пользователь не найден. Нажмите /start")
+        await state.clear()
+        return
+
+    await update_user_email(session, user, email)
+    fresh_user = await get_user_by_telegram_id(session, message.from_user.id)
+    await state.clear()
+
+    from app.bot.handlers.start import activate_trial_subscription
+
+    await message.answer(f"✅ Email сохранен: {email}")
+    await activate_trial_subscription(message, session, fresh_user or user)
 
 
 @router.callback_query(F.data.startswith("tariff:"))

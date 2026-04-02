@@ -4,7 +4,7 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards.common import cancel_keyboard, main_menu_keyboard, tariffs_keyboard
-from app.bot.states import BuySubscriptionState
+from app.bot.states import BuySubscriptionState, TrialSubscriptionState
 from app.core.config import parse_admin_telegram_ids, settings
 from app.repositories.friend_discounts import create_friend_discount
 from app.repositories.orders import create_order, mark_order_paid
@@ -276,7 +276,6 @@ async def buy_subscription_handler(message: Message, state: FSMContext, session:
         return
 
     await state.set_state(BuySubscriptionState.waiting_for_email)
-    await state.update_data(next_action="buy_subscription")
     await message.answer(
         "📧 Для оформления подписки нужен email.\n\nПожалуйста, введите ваш email:",
         reply_markup=cancel_keyboard(),
@@ -346,8 +345,7 @@ async def activate_trial_handler(message: Message, state: FSMContext, session: A
         return
 
     if not user.email:
-        await state.set_state(BuySubscriptionState.waiting_for_email)
-        await state.update_data(next_action="activate_trial")
+        await state.set_state(TrialSubscriptionState.waiting_for_email)
         await message.answer(
             "📧 Для активации пробного периода нужен email.\n\nПожалуйста, введите ваш email:",
             reply_markup=cancel_keyboard(),
