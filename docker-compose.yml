@@ -19,18 +19,5 @@ services:
       timeout: 5s
       retries: 5
 
-  app:
-    build: .
-    container_name: subbot_app
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - .env
-    command: sh -c "alembic upgrade head && python -m app.main"
-    ports:
-      - "8000:8000"
-
 volumes:
   postgres_data:
