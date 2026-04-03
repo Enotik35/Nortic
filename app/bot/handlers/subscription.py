@@ -24,7 +24,7 @@ from app.repositories.orders import create_order, get_order_by_id, mark_order_pa
 from app.repositories.referrals import get_referral_by_referred_user_id, mark_referral_paid
 from app.repositories.subscriptions import get_active_subscription
 from app.repositories.tariffs import get_active_tariffs, get_tariff_by_id
-from app.repositories.users import get_user_by_telegram_id, update_user_email
+from app.repositories.users import get_user_by_id, get_user_by_telegram_id, update_user_email
 from app.services.discount_service import apply_discount, get_best_discount_details
 from app.services.payment_stub import get_test_payment_links
 from app.services.subscription_service import create_or_extend_subscription
@@ -89,6 +89,7 @@ async def activate_paid_order(*, session: AsyncSession, order, user):
     access_key = await get_latest_access_key_by_subscription(session, subscription.id)
     if access_key:
         await sync_existing_key_expiry_in_3xui(
+            session=session,
             access_key=access_key,
             subscription=subscription,
             user_telegram_id=user.telegram_id,
@@ -294,7 +295,8 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         payment_provider="manual_review",
     )
 
-    links = get_test_payment_links(order.id)
+    show_test_payment_links = settings.allow_test_payments or is_admin(callback.from_user.id)
+    links = get_test_payment_links(order.id) if show_test_payment_links else None
 
     price_text = f"Цена: {tariff.price_rub} RUB"
     if discount_percent > 0:
@@ -303,6 +305,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
             f"Ваша скидка: {discount_percent}%\n"
             f"Итого к оплате: {final_price_rub} RUB"
         )
+    order_action_text = "Выберите способ оплаты:" if show_test_payment_links else "Заказ создан:"
 
     await callback.message.answer(
         "✨ Вы выбрали тариф:\n\n"
@@ -310,15 +313,23 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         f"Срок: {tariff.duration_days} дней\n"
         f"{price_text}\n\n"
         f"Заказ №{order.id}\n\n"
-        "Выберите способ оплаты:",
+        f"{order_action_text}",
         reply_markup=payment_methods_keyboard(order.id, links),
     )
-    await callback.message.answer(
-        "💡 После оплаты нажмите «Проверить оплату».\n\n"
-        "Если тестовые оплаты отключены, доступ будет выдан после реальной интеграции "
-        "платежного провайдера или ручной проверки администратором.",
-        reply_markup=cancel_keyboard(),
-    )
+    if show_test_payment_links:
+        await callback.message.answer(
+            "💡 После оплаты нажмите «Проверить оплату».\n\n"
+            "Если тестовые оплаты отключены, доступ будет выдан после реальной интеграции "
+            "платежного провайдера или ручной проверки администратором.",
+            reply_markup=cancel_keyboard(),
+        )
+    else:
+        await callback.message.answer(
+            "💡 Тестовые платежи отключены, поэтому фейковые ссылки оплаты не показываются.\n\n"
+            "После подключения реального платежного провайдера здесь появятся рабочие методы оплаты. "
+            "Сейчас заказ можно использовать для ручной проверки администратором.",
+            reply_markup=cancel_keyboard(),
+        )
 
 
 @router.callback_query(F.data.startswith("paid:"))
@@ -332,13 +343,18 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
         await callback.message.answer("Заказ не найден.")
         return
 
-    user = await get_user_by_telegram_id(session, callback.from_user.id)
-    if not user:
+    actor = await get_user_by_telegram_id(session, callback.from_user.id)
+    if not actor:
         await callback.message.answer("Пользователь не найден.")
         return
 
-    if order.user_id != user.id and not is_admin(callback.from_user.id):
+    if order.user_id != actor.id and not is_admin(callback.from_user.id):
         await callback.message.answer("Этот заказ принадлежит другому пользователю.")
+        return
+
+    order_user = await get_user_by_id(session, order.user_id)
+    if not order_user:
+        await callback.message.answer("Владелец заказа не найден.")
         return
 
     if order.status == "paid":
@@ -356,7 +372,7 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
         subscription, access_key = await activate_paid_order(
             session=session,
             order=order,
-            user=user,
+            user=order_user,
         )
     except ValueError as e:
         await session.rollback()

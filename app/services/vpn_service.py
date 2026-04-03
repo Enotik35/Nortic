@@ -1,9 +1,12 @@
 import uuid as uuid_lib
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.access_key import AccessKey
+from app.models.server import Server
 from app.models.subscription import Subscription
 from app.models.user import User
 from app.repositories.access_keys import create_access_key
@@ -159,7 +162,26 @@ async def issue_vpn_key_for_subscription(
     return access_key
 
 
-async def sync_existing_key_expiry_in_3xui(access_key, subscription, user_telegram_id: int):
+async def get_server_for_access_key(session: AsyncSession, access_key: AccessKey) -> Server | None:
+    if access_key.server_id is not None:
+        result = await session.execute(
+            select(Server).where(Server.id == access_key.server_id)
+        )
+        server = result.scalar_one_or_none()
+        if server is not None:
+            return server
+
+    return await get_active_server(session)
+
+
+async def sync_existing_key_expiry_in_3xui(
+    *,
+    session: AsyncSession,
+    access_key: AccessKey,
+    subscription: Subscription,
+    user_telegram_id: int,
+):
+    server = await get_server_for_access_key(session, access_key)
     provider = ThreeXUIProvider(
         base_url=settings.threexui_base_url,
         username=settings.threexui_username,
@@ -170,12 +192,13 @@ async def sync_existing_key_expiry_in_3xui(access_key, subscription, user_telegr
     try:
         client_id = access_key.external_client_id or access_key.uuid
         email = f"tg-{user_telegram_id}-sub-{subscription.id}-dev-{access_key.device_id}"
+        flow = server.flow if server else "xtls-rprx-vision"
 
         await provider.update_vless_client(
             client_id=client_id,
             email=email,
             inbound_id=settings.threexui_inbound_id,
-            flow="xtls-rprx-vision",
+            flow=flow,
             limit_ip=0,
             total_gb=0,
             expiry_time_ms=dt_to_3xui_ms(subscription.end_at),
@@ -186,3 +209,21 @@ async def sync_existing_key_expiry_in_3xui(access_key, subscription, user_telegr
         )
     finally:
         await provider.aclose()
+
+    access_key.expires_at = subscription.end_at
+
+    if server and access_key.uuid:
+        label = f"Nortic-{user_telegram_id}-{access_key.device_id}"
+        access_key.vless_uri = build_vless_uri(
+            host=server.host,
+            port=server.port,
+            public_key=server.public_key,
+            short_id=server.short_id,
+            sni=server.sni,
+            uuid=access_key.uuid,
+            label=label,
+            flow=server.flow,
+            security=server.security,
+            transport=server.transport,
+        )
+        access_key.key_value = access_key.vless_uri

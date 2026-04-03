@@ -10,4 +10,4 @@ async def get_active_server(session: AsyncSession) -> Server | None:
         .where(Server.is_active.is_(True))
         .order_by(Server.id.asc())
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()

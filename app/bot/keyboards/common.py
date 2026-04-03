@@ -58,12 +58,20 @@ def tariffs_keyboard(tariffs: list[dict]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def payment_methods_keyboard(order_id: int, links: dict) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Оплатить картой", url=links["card"])],
-            [InlineKeyboardButton(text="🪙 Оплатить crypto", url=links["crypto"])],
-            [InlineKeyboardButton(text="⭐ Оплатить через Stars", url=links["stars"])],
-            [InlineKeyboardButton(text="✅ Проверить оплату", callback_data=f"paid:{order_id}")],
-        ]
+def payment_methods_keyboard(order_id: int, links: dict | None = None) -> InlineKeyboardMarkup:
+    inline_keyboard = []
+
+    if links:
+        inline_keyboard.extend(
+            [
+                [InlineKeyboardButton(text="💳 Оплатить картой", url=links["card"])],
+                [InlineKeyboardButton(text="🪙 Оплатить crypto", url=links["crypto"])],
+                [InlineKeyboardButton(text="⭐ Оплатить через Stars", url=links["stars"])],
+            ]
+        )
+
+    inline_keyboard.append(
+        [InlineKeyboardButton(text="✅ Проверить оплату", callback_data=f"paid:{order_id}")]
     )
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)

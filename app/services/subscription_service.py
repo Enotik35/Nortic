@@ -6,6 +6,7 @@ from app.models.access_key import AccessKey
 from app.models.subscription import Subscription
 from app.models.tariff import Tariff
 from app.models.user import User
+from app.repositories.subscriptions import expire_outdated_subscriptions
 
 
 async def get_or_create_test_key(session: AsyncSession, user: User) -> AccessKey:
@@ -36,6 +37,8 @@ async def create_or_extend_subscription(
     tariff: Tariff,
     access_key_id: int,
 ) -> Subscription:
+    await expire_outdated_subscriptions(session, user.id)
+
     result = await session.execute(
         select(Subscription)
         .where(Subscription.user_id == user.id)
@@ -50,6 +53,7 @@ async def create_or_extend_subscription(
         active_subscription.end_at = active_subscription.end_at + timedelta(days=tariff.duration_days)
         active_subscription.order_id = order_id
         active_subscription.access_key_id = access_key_id
+        active_subscription.device_limit_snapshot = tariff.device_limit
         await session.flush()
         await session.refresh(active_subscription)
         return active_subscription
@@ -62,6 +66,7 @@ async def create_or_extend_subscription(
         start_at=now,
         end_at=now + timedelta(days=tariff.duration_days),
         access_key_id=access_key_id,
+        device_limit_snapshot=tariff.device_limit,
     )
     session.add(subscription)
     await session.flush()

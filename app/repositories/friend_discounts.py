@@ -19,15 +19,26 @@ async def get_active_friend_discount_by_telegram_id(
     discounts = list(result.scalars().all())
 
     now = datetime.utcnow()
+    valid_discounts: list[FriendDiscount] = []
 
     for discount in discounts:
         if discount.expires_at and discount.expires_at < now:
             continue
         if discount.used_count >= discount.max_usages:
             continue
-        return discount
+        valid_discounts.append(discount)
 
-    return None
+    if not valid_discounts:
+        return None
+
+    valid_discounts.sort(
+        key=lambda discount: (
+            -discount.discount_percent,
+            discount.expires_at or datetime.max,
+            discount.id,
+        )
+    )
+    return valid_discounts[0]
 
 
 async def get_friend_discount_by_id(
@@ -49,6 +60,17 @@ async def create_friend_discount(
     comment: str | None = None,
     expires_at: datetime | None = None,
 ) -> FriendDiscount:
+    existing_result = await session.execute(
+        select(FriendDiscount).where(
+            FriendDiscount.telegram_id == telegram_id,
+            FriendDiscount.is_active.is_(True),
+        )
+    )
+    existing_discounts = list(existing_result.scalars().all())
+
+    for existing_discount in existing_discounts:
+        existing_discount.is_active = False
+
     discount = FriendDiscount(
         telegram_id=telegram_id,
         discount_percent=discount_percent,
