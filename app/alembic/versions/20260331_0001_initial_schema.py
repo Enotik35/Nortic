@@ -14,7 +14,7 @@ def upgrade() -> None:
     op.create_table(
         "friend_discounts",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("telegram_id", sa.Integer(), nullable=False),
+        sa.Column("telegram_id", sa.BigInteger(), nullable=False),
         sa.Column("discount_percent", sa.Integer(), nullable=False),
         sa.Column("max_usages", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("used_count", sa.Integer(), nullable=False, server_default="0"),
