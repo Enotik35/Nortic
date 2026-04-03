@@ -231,23 +231,21 @@ async def trial_email_input_handler(message: Message, state: FSMContext, session
 
 @router.callback_query(F.data.startswith("tariff:"))
 async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession):
+    await callback.answer()
     tariff_id = int(callback.data.split(":")[1])
     tariff = await get_tariff_by_id(session, tariff_id)
 
     if not tariff or not tariff.is_active:
         await callback.message.answer("😔 Тариф не найден или недоступен.")
-        await callback.answer()
         return
 
     user = await get_user_by_telegram_id(session, callback.from_user.id)
     if not user:
         await callback.message.answer("Пользователь не найден. Нажмите /start")
-        await callback.answer()
         return
 
     if not user.email:
         await callback.message.answer("📧 Сначала укажите email.")
-        await callback.answer()
         return
 
     if tariff.is_trial:
@@ -263,7 +261,6 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
                     show_trial=False,
                 ),
             )
-            await callback.answer()
             return
 
         if active_subscription:
@@ -274,11 +271,9 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
                     show_trial=False,
                 ),
             )
-            await callback.answer()
             return
 
         await activate_trial_subscription(callback.message, session, user)
-        await callback.answer()
         return
 
     discount_percent, discount_source, friend_discount_id = await get_best_discount_details(
@@ -324,7 +319,6 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         "платежного провайдера или ручной проверки администратором.",
         reply_markup=cancel_keyboard(),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("paid:"))
