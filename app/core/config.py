@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = ""
     yookassa_secret_key: str = ""
     yookassa_return_url: str = ""
+    internal_api_token: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -36,6 +37,10 @@ def is_yookassa_configured() -> bool:
         and settings.yookassa_secret_key.strip()
         and settings.yookassa_return_url.strip()
     )
+
+
+def is_internal_api_token_configured() -> bool:
+    return bool(settings.internal_api_token.strip())
 
 
 def parse_admin_telegram_ids(raw_value: str) -> set[int]:

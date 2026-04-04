@@ -1,0 +1,8 @@
+[functions]
+directory = "netlify/functions"
+
+[[redirects]]
+from = "/webhooks/yookassa"
+to = "/.netlify/functions/yookassa-webhook"
+status = 200
+force = true

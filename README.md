@@ -46,6 +46,33 @@ curl https://api.example.com/health
 - Webhook URL: `https://api.example.com/webhooks/yookassa`
 - Return URL: `https://example.com/payment-return`
 
+### Netlify Webhook Fallback
+
+If the VPS cannot expose `443` because another service already owns it, you can receive the YooKassa webhook on Netlify and forward activation to the backend.
+
+Files:
+
+- `netlify.toml`
+- `netlify/functions/yookassa-webhook.js`
+
+Netlify environment variables:
+
+- `YOOKASSA_SHOP_ID`
+- `YOOKASSA_SECRET_KEY`
+- `BACKEND_ACTIVATE_URL`
+- `INTERNAL_API_TOKEN`
+
+Recommended values:
+
+- `BACKEND_ACTIVATE_URL=http://YOUR_VPS_IP:8000/internal/yookassa/activate`
+- `INTERNAL_API_TOKEN` should match `INTERNAL_API_TOKEN` in `.env.production`
+
+Then set YooKassa webhook to:
+
+- `https://example.com/webhooks/yookassa`
+
+In this fallback topology, the public webhook lives on Netlify, while the actual subscription activation still happens in the Python backend on the VPS.
+
 ### Migration To Another VPS Later
 
 To move to another VPS later:
