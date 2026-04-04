@@ -9,7 +9,7 @@ Recommended topology:
 
 ### Files for VPS
 
-- `Dockerfile` builds the bot + FastAPI app
+- `Dockerfile` builds the API-only container for webhook handling
 - `docker-compose.prod.yml` runs `app`, `db`, and `caddy`
 - `deploy/Caddyfile` terminates HTTPS and proxies to FastAPI
 - `deploy/.env.production.example` is the template for `.env.production`
@@ -40,6 +40,8 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 docker compose --env-file .env.production -f docker-compose.prod.yml ps
 curl https://api.example.com/health
 ```
+
+The production Docker stack should run only the FastAPI API. Keep the Telegram bot polling process under `systemd` or another separate supervisor so only one polling instance is running.
 
 ### YooKassa Values
 
