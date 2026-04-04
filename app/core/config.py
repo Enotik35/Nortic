@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     threexui_verify_ssl: bool = True
     bot_instance_lock_id: int = 424242
     allow_test_payments: bool = False
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+    yookassa_return_url: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -25,6 +28,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def is_yookassa_configured() -> bool:
+    return bool(
+        settings.yookassa_shop_id.strip()
+        and settings.yookassa_secret_key.strip()
+        and settings.yookassa_return_url.strip()
+    )
 
 
 def parse_admin_telegram_ids(raw_value: str) -> set[int]:

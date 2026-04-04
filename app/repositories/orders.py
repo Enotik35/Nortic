@@ -41,11 +41,30 @@ async def mark_order_paid(
     session: AsyncSession,
     order: Order,
     payment_id: Optional[str] = None,
+    payment_provider: Optional[str] = None,
 ) -> Order:
     order.status = "paid"
     order.paid_at = datetime.utcnow()
     if payment_id:
         order.payment_id = payment_id
+    if payment_provider:
+        order.payment_provider = payment_provider
+    await session.flush()
+    await session.refresh(order)
+    return order
+
+
+async def update_order_payment(
+    session: AsyncSession,
+    order: Order,
+    *,
+    payment_id: Optional[str] = None,
+    payment_provider: Optional[str] = None,
+) -> Order:
+    if payment_id:
+        order.payment_id = payment_id
+    if payment_provider:
+        order.payment_provider = payment_provider
     await session.flush()
     await session.refresh(order)
     return order
