@@ -63,7 +63,7 @@ def _parse_payment(payload: dict[str, Any]) -> YooKassaPayment:
     )
 
 
-async def create_sbp_payment(*, order_id: int, amount_rub: int, description: str) -> YooKassaPayment:
+async def create_payment(*, order_id: int, amount_rub: int, description: str) -> YooKassaPayment:
     payload = {
         "amount": {
             "value": amount_to_rub_value(amount_rub),
@@ -74,9 +74,6 @@ async def create_sbp_payment(*, order_id: int, amount_rub: int, description: str
             "type": "redirect",
             "return_url": settings.yookassa_return_url,
         },
-        "payment_method_data": {
-            "type": "sbp",
-        },
         "description": description,
         "metadata": {
             "order_id": str(order_id),
@@ -84,6 +81,14 @@ async def create_sbp_payment(*, order_id: int, amount_rub: int, description: str
     }
     response = await _request("POST", "/payments", body=payload)
     return _parse_payment(response)
+
+
+async def create_sbp_payment(*, order_id: int, amount_rub: int, description: str) -> YooKassaPayment:
+    return await create_payment(
+        order_id=order_id,
+        amount_rub=amount_rub,
+        description=description,
+    )
 
 
 async def get_payment(payment_id: str) -> YooKassaPayment:
