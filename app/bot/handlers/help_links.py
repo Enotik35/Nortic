@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 router = Router()
 
 INSTRUCTION_URL = "https://t.me/Norticboost/3"
-SUPPORT_URL = "https://t.me/Norticboost_admin"
+SUPPORT_URL = "https://t.me/nortic_team"
 
 
 @router.message(F.text == "Инструкция")
