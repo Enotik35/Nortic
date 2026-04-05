@@ -6,3 +6,9 @@ from = "/webhooks/yookassa"
 to = "/.netlify/functions/yookassa-webhook"
 status = 200
 force = true
+
+[[redirects]]
+from = "/payment-return"
+to = "/.netlify/functions/payment-return"
+status = 200
+force = true

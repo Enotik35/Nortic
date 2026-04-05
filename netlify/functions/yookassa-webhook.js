@@ -8,6 +8,27 @@ function json(statusCode, body) {
   };
 }
 
+function log(message, extra) {
+  console.log(
+    JSON.stringify({
+      message,
+      ...extra,
+    })
+  );
+}
+
+function parseEventBody(event) {
+  const rawBody = event.isBase64Encoded
+    ? Buffer.from(event.body || "", "base64").toString("utf-8")
+    : event.body || "";
+
+  if (!rawBody.trim()) {
+    return {};
+  }
+
+  return JSON.parse(rawBody);
+}
+
 async function fetchYooKassaPayment(paymentId, shopId, secretKey) {
   const auth = Buffer.from(`${shopId}:${secretKey}`).toString("base64");
   const response = await fetch(`${YOOKASSA_API_URL}/payments/${paymentId}`, {
@@ -62,12 +83,19 @@ exports.handler = async function handler(event) {
 
   let payload;
   try {
-    payload = JSON.parse(event.body || "{}");
-  } catch {
+    payload = parseEventBody(event);
+  } catch (error) {
+    log("Invalid YooKassa webhook payload", {
+      error: error.message,
+    });
     return json(400, { error: "Invalid JSON" });
   }
 
   if (payload.event !== "payment.succeeded") {
+    log("Skipping unsupported YooKassa event", {
+      event: payload.event || null,
+      objectType: payload?.object?.type || null,
+    });
     return json(200, { ok: true, skipped: true });
   }
 
@@ -79,12 +107,25 @@ exports.handler = async function handler(event) {
   try {
     const payment = await fetchYooKassaPayment(paymentId, shopId, secretKey);
     if (payment.status !== "succeeded") {
+      log("Skipping YooKassa payment with non-succeeded status", {
+        paymentId,
+        status: payment.status || null,
+      });
       return json(200, { ok: true, skipped: true });
     }
 
     const activationResult = await activateOnBackend(paymentId, backendUrl, internalToken);
+    log("YooKassa payment activated on backend", {
+      paymentId,
+      backendStatus: activationResult?.status || null,
+      orderId: activationResult?.order_id || null,
+    });
     return json(200, { ok: true, activation: activationResult });
   } catch (error) {
+    log("YooKassa webhook processing failed", {
+      paymentId,
+      error: error.message || "Webhook processing failed",
+    });
     return json(502, { error: error.message || "Webhook processing failed" });
   }
 };

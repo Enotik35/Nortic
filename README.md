@@ -3,31 +3,23 @@
 Recommended topology:
 
 - `example.com` or `www.example.com` -> site on Netlify
-- `api.example.com` -> this Python backend on a VPS
-- YooKassa webhook -> `https://api.example.com/webhooks/yookassa`
+- `YOUR_VPS_IP:8000` -> this Python backend in Docker on a VPS
+- YooKassa webhook -> `https://example.com/webhooks/yookassa` on Netlify
 - YooKassa return URL -> `https://example.com/payment-return`
 
 ### Files for VPS
 
 - `Dockerfile` builds the API-only container for webhook handling
-- `docker-compose.prod.yml` runs `app`, `db`, and `caddy`
-- `deploy/Caddyfile` terminates HTTPS and proxies to FastAPI
+- `docker-compose.prod.yml` runs only the API container on port `8000`
 - `deploy/.env.production.example` is the template for `.env.production`
-
-### DNS
-
-Create these records:
-
-- `A` record: `api` -> your VPS public IP
-- `CNAME` or Netlify-managed record: `www` / apex domain -> Netlify
 
 ### First Deploy On VPS
 
 1. Install Docker and Docker Compose plugin.
 2. Clone this repository to the VPS.
 3. Copy `deploy/.env.production.example` to `.env.production`.
-4. Fill in production values, especially `BOT_TOKEN`, `THREEXUI_*`, `YOOKASSA_*`, `POSTGRES_PASSWORD`, and `API_DOMAIN`.
-5. Make sure DNS for `api.example.com` already points to the VPS.
+4. Fill in production values, especially `DATABASE_URL`, `BOT_TOKEN`, `THREEXUI_*`, `YOOKASSA_*`, and `INTERNAL_API_TOKEN`.
+5. Make sure `DATABASE_URL` points to the existing PostgreSQL instance. If PostgreSQL is already published on the VPS host as `5433:5432`, you can use `host.docker.internal:5433` from the API container.
 6. Start the stack:
 
 ```bash
@@ -38,24 +30,25 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml ps
-curl https://api.example.com/health
+curl http://YOUR_VPS_IP:8000/health
 ```
 
-The production Docker stack should run only the FastAPI API. Keep the Telegram bot polling process under `systemd` or another separate supervisor so only one polling instance is running.
+The production Docker stack should run only the FastAPI API. Keep the Telegram bot polling process under `systemd` or another separate supervisor so only one polling instance is running. This compose file does not create or manage PostgreSQL, and it does not start the Telegram bot.
 
 ### YooKassa Values
 
-- Webhook URL: `https://api.example.com/webhooks/yookassa`
+- Webhook URL: `https://example.com/webhooks/yookassa`
 - Return URL: `https://example.com/payment-return`
 
 ### Netlify Webhook Fallback
 
-If the VPS cannot expose `443` because another service already owns it, you can receive the YooKassa webhook on Netlify and forward activation to the backend.
+Receive the YooKassa webhook on Netlify and forward activation to the backend API on the VPS.
 
 Files:
 
 - `netlify.toml`
 - `netlify/functions/yookassa-webhook.js`
+- `netlify/functions/payment-return.js`
 
 Netlify environment variables:
 
@@ -73,6 +66,10 @@ Then set YooKassa webhook to:
 
 - `https://example.com/webhooks/yookassa`
 
+And set the YooKassa return URL to:
+
+- `https://example.com/payment-return`
+
 In this fallback topology, the public webhook lives on Netlify, while the actual subscription activation still happens in the Python backend on the VPS.
 
 ### Migration To Another VPS Later
@@ -83,7 +80,7 @@ To move to another VPS later:
 2. Copy `.env.production`.
 3. Migrate PostgreSQL data.
 4. Start the new stack.
-5. Verify `https://api.example.com/health`.
-6. Change the `A` record for `api.example.com` to the new VPS IP.
+5. Verify `http://NEW_VPS_IP:8000/health`.
+6. Update `BACKEND_ACTIVATE_URL` on Netlify to the new VPS IP.
 
-Because the public URL stays the same, Telegram and YooKassa do not need code changes.
+Because the public Netlify URLs stay the same, YooKassa does not need code changes when the VPS changes.
