@@ -24,6 +24,9 @@ async def activate_order_from_payment(
     if not order:
         raise ValueError("ORDER_NOT_FOUND")
 
+    if order.payment_id and order.payment_id != payment.id:
+        raise ValueError("ORDER_PAYMENT_MISMATCH")
+
     if order.status == "paid":
         return None, order
 

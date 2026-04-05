@@ -311,6 +311,13 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
             )
             return
 
+        payment_order_id_raw = payment.metadata.get("order_id")
+        if str(payment_order_id_raw or "") != str(order.id):
+            await callback.message.answer(
+                "Платеж не соответствует этому заказу. Создайте новый заказ и попробуйте снова."
+            )
+            return
+
         if payment.status != "succeeded":
             await callback.message.answer(
                 "Оплата еще не подтверждена. Если вы уже оплатили, подождите немного и проверьте еще раз."
