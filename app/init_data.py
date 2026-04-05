@@ -36,23 +36,16 @@ DEFAULT_TARIFFS = [
     TariffSeed(
         name="1 месяц",
         duration_days=30,
-        price_rub=990,
+        price_rub=150,
         device_limit=1,
         traffic_limit_gb=100,
     ),
     TariffSeed(
         name="3 месяца",
         duration_days=90,
-        price_rub=2490,
-        device_limit=2,
+        price_rub=400,
+        device_limit=1,
         traffic_limit_gb=300,
-    ),
-    TariffSeed(
-        name="12 месяцев",
-        duration_days=365,
-        price_rub=7990,
-        device_limit=3,
-        traffic_limit_gb=1200,
     ),
 ]
 
