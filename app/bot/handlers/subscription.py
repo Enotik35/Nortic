@@ -30,8 +30,8 @@ def is_admin(user_id: int) -> bool:
     return user_id in admin_ids
 
 
-@router.message(BuySubscriptionState.waiting_for_email, F.text == "рџ“± РњРѕСЏ РїРѕРґРїРёСЃРєР°")
-@router.message(TrialSubscriptionState.waiting_for_email, F.text == "рџ“± РњРѕСЏ РїРѕРґРїРёСЃРєР°")
+@router.message(BuySubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
+@router.message(TrialSubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
 async def my_subscription_from_email_state(
     message: Message,
     state: FSMContext,
@@ -41,32 +41,32 @@ async def my_subscription_from_email_state(
 
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start", reply_markup=main_menu_keyboard())
+        await message.answer("Пользователь не найден. Нажмите /start", reply_markup=main_menu_keyboard())
         return
 
     subscription = await get_active_subscription(session, user.id)
     if not subscription:
-        await message.answer("рџ™‚ РђРєС‚РёРІРЅРѕР№ РїРѕРґРїРёСЃРєРё РїРѕРєР° РЅРµС‚.", reply_markup=main_menu_keyboard())
+        await message.answer("🙂 Активной подписки пока нет.", reply_markup=main_menu_keyboard())
         return
 
     access_key = await get_subscription_access_key(session, subscription)
-    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "РљР»СЋС‡ РЅРµ РЅР°Р№РґРµРЅ"
+    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
 
     await message.answer(
-        "рџ“± Р’Р°С€Р° РїРѕРґРїРёСЃРєР°\n\n"
-        f"РќРѕРјРµСЂ: {subscription.subscription_number}\n"
-        f"РЎС‚Р°С‚СѓСЃ: {subscription.status}\n"
-        f"Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}",
+        "📱 Ваша подписка\n\n"
+        f"Номер: {subscription.subscription_number}\n"
+        f"Статус: {subscription.status}\n"
+        f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}",
         reply_markup=main_menu_keyboard(),
     )
-    await message.answer("рџ”‘ Р’Р°С€ РєР»СЋС‡ VLESS:")
+    await message.answer("🔑 Ваш ключ VLESS:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
 
 
 @router.message(BuySubscriptionState.waiting_for_email)
 async def email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
     if not message.text:
-        await message.answer("РџРѕР¶Р°Р»СѓР№СЃС‚Р°, РѕС‚РїСЂР°РІСЊС‚Рµ email С‚РµРєСЃС‚РѕРј.", reply_markup=cancel_keyboard())
+        await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return
 
     try:
@@ -74,16 +74,16 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         email = valid.normalized
     except EmailNotValidError:
         await message.answer(
-            "рџ… РџРѕС…РѕР¶Рµ, СЌС‚Рѕ РЅРµ email.\n\n"
-            "РџСЂРёРјРµСЂ: name@example.com\n\n"
-            "Р’РІРµРґРёС‚Рµ email РµС‰Рµ СЂР°Р· РёР»Рё РЅР°Р¶РјРёС‚Рµ В«РћС‚РјРµРЅР°В».",
+            "😅 Похоже, это не email.\n\n"
+            "Пример: name@example.com\n\n"
+            "Введите email еще раз или нажмите «Отмена».",
             reply_markup=cancel_keyboard(),
         )
         return
 
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start")
+        await message.answer("Пользователь не найден. Нажмите /start")
         await state.clear()
         return
 
@@ -92,11 +92,11 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
 
     tariffs = await get_active_tariffs(session)
     if not tariffs:
-        await message.answer("рџ” РЎРµР№С‡Р°СЃ РЅРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… С‚Р°СЂРёС„РѕРІ.", reply_markup=main_menu_keyboard())
+        await message.answer("😔 Сейчас нет доступных тарифов.", reply_markup=main_menu_keyboard())
         return
 
     await message.answer(
-        f"вњ… Email СЃРѕС…СЂР°РЅРµРЅ: {email}\n\nРўРµРїРµСЂСЊ РІС‹Р±РµСЂРёС‚Рµ РїРѕРґС…РѕРґСЏС‰РёР№ С‚Р°СЂРёС„:",
+        f"✅ Email сохранен: {email}\n\nТеперь выберите подходящий тариф:",
         reply_markup=tariffs_keyboard(
             [
                 {
@@ -109,7 +109,7 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
         ),
     )
     await message.answer(
-        "в†©пёЏ Р”Р»СЏ РІРѕР·РІСЂР°С‚Р° РјРѕР¶РЅРѕ РЅР°Р¶Р°С‚СЊ В«РћС‚РјРµРЅР°В» РёР»Рё В«Р“Р»Р°РІРЅРѕРµ РјРµРЅСЋВ».",
+        "↩️ Для возврата можно нажать «Отмена» или «Главное меню».",
         reply_markup=cancel_keyboard(),
     )
 
@@ -117,7 +117,7 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
 @router.message(TrialSubscriptionState.waiting_for_email)
 async def trial_email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
     if not message.text:
-        await message.answer("РџРѕР¶Р°Р»СѓР№СЃС‚Р°, РѕС‚РїСЂР°РІСЊС‚Рµ email С‚РµРєСЃС‚РѕРј.", reply_markup=cancel_keyboard())
+        await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return
 
     try:
@@ -125,16 +125,16 @@ async def trial_email_input_handler(message: Message, state: FSMContext, session
         email = valid.normalized
     except EmailNotValidError:
         await message.answer(
-            "рџ… РџРѕС…РѕР¶Рµ, СЌС‚Рѕ РЅРµ email.\n\n"
-            "РџСЂРёРјРµСЂ: name@example.com\n\n"
-            "Р’РІРµРґРёС‚Рµ email РµС‰Рµ СЂР°Р· РёР»Рё РЅР°Р¶РјРёС‚Рµ В«РћС‚РјРµРЅР°В».",
+            "😅 Похоже, это не email.\n\n"
+            "Пример: name@example.com\n\n"
+            "Введите email еще раз или нажмите «Отмена».",
             reply_markup=cancel_keyboard(),
         )
         return
 
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start")
+        await message.answer("Пользователь не найден. Нажмите /start")
         await state.clear()
         return
 
@@ -144,7 +144,7 @@ async def trial_email_input_handler(message: Message, state: FSMContext, session
 
     from app.bot.handlers.start import activate_trial_subscription
 
-    await message.answer(f"вњ… Email СЃРѕС…СЂР°РЅРµРЅ: {email}")
+    await message.answer(f"✅ Email сохранен: {email}")
     await activate_trial_subscription(message, session, fresh_user or user)
 
 
@@ -155,16 +155,16 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
     tariff = await get_tariff_by_id(session, tariff_id)
 
     if not tariff or not tariff.is_active:
-        await callback.message.answer("рџ” РўР°СЂРёС„ РЅРµ РЅР°Р№РґРµРЅ РёР»Рё РЅРµРґРѕСЃС‚СѓРїРµРЅ.")
+        await callback.message.answer("😔 Тариф не найден или недоступен.")
         return
 
     user = await get_user_by_telegram_id(session, callback.from_user.id)
     if not user:
-        await callback.message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start")
+        await callback.message.answer("Пользователь не найден. Нажмите /start")
         return
 
     if not user.email:
-        await callback.message.answer("рџ“§ РЎРЅР°С‡Р°Р»Р° СѓРєР°Р¶РёС‚Рµ email.")
+        await callback.message.answer("📧 Сначала укажите email.")
         return
 
     if tariff.is_trial:
@@ -174,7 +174,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
         if user.trial_used:
             await callback.message.answer(
-                "рџ™‚ РџСЂРѕР±РЅС‹Р№ РїРµСЂРёРѕРґ СѓР¶Рµ Р±С‹Р» РёСЃРїРѕР»СЊР·РѕРІР°РЅ.",
+                "🙂 Пробный период уже был использован.",
                 reply_markup=main_menu_keyboard(
                     has_active_subscription=bool(active_subscription),
                     show_trial=False,
@@ -184,7 +184,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
         if active_subscription:
             await callback.message.answer(
-                "в„№пёЏ РЈ РІР°СЃ СѓР¶Рµ РµСЃС‚СЊ Р°РєС‚РёРІРЅР°СЏ РїРѕРґРїРёСЃРєР°.",
+                "ℹ️ У вас уже есть активная подписка.",
                 reply_markup=main_menu_keyboard(
                     has_active_subscription=True,
                     show_trial=False,
@@ -224,7 +224,7 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         except YooKassaError:
             await session.rollback()
             await callback.message.answer(
-                "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїР»Р°С‚РµР¶ РІ Р®Kassa. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰Рµ СЂР°Р· С‡СѓС‚СЊ РїРѕР·Р¶Рµ."
+                "Не удалось создать платеж в ЮKassa. Попробуйте еще раз чуть позже."
             )
             return
 
@@ -237,80 +237,84 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
         )
         await session.commit()
 
-    price_text = f"Р¦РµРЅР°: {tariff.price_rub} RUB"
+    price_text = f"Цена: {tariff.price_rub} RUB"
     if discount_percent > 0:
         price_text = (
-            f"Р‘Р°Р·РѕРІР°СЏ С†РµРЅР°: {tariff.price_rub} RUB\n"
-            f"Р’Р°С€Р° СЃРєРёРґРєР°: {discount_percent}%\n"
-            f"РС‚РѕРіРѕ Рє РѕРїР»Р°С‚Рµ: {final_price_rub} RUB"
+            f"Базовая цена: {tariff.price_rub} RUB\n"
+            f"Ваша скидка: {discount_percent}%\n"
+            f"Итого к оплате: {final_price_rub} RUB"
         )
-    order_action_text = "РћРїР»Р°С‚РёС‚Рµ С‡РµСЂРµР· РЎР‘Рџ:" if payment_url else "Р—Р°РєР°Р· СЃРѕР·РґР°РЅ:"
+    order_action_text = "Оплатите через СБП:" if payment_url else "Заказ создан:"
 
     await callback.message.answer(
-        "вњЁ Р’С‹ РІС‹Р±СЂР°Р»Рё С‚Р°СЂРёС„:\n\n"
+        "✨ Вы выбрали тариф:\n\n"
         f"{tariff.name}\n"
-        f"РЎСЂРѕРє: {tariff.duration_days} РґРЅРµР№\n"
+        f"Срок: {tariff.duration_days} дней\n"
         f"{price_text}\n\n"
-        f"Р—Р°РєР°Р· в„–{order.id}\n\n"
+        f"Заказ №{order.id}\n\n"
         f"{order_action_text}",
         reply_markup=payment_methods_keyboard(order.id, payment_url),
     )
     if payment_url:
         await callback.message.answer(
-            "РџРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚С‹ РјС‹ Р°РєС‚РёРІРёСЂСѓРµРј РїРѕРґРїРёСЃРєСѓ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїРѕ webhook Р®Kassa.\n\n"
-            "Р•СЃР»Рё СЃС‚Р°С‚СѓСЃ РµС‰Рµ РЅРµ СѓСЃРїРµР» РѕР±РЅРѕРІРёС‚СЊСЃСЏ, РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊ РѕРїР»Р°С‚СѓВ».",
+            "После успешной оплаты мы активируем подписку автоматически по webhook ЮKassa.\n\n"
+            "Если статус еще не успел обновиться, нажмите «Проверить оплату».",
             reply_markup=cancel_keyboard(),
         )
     else:
         await callback.message.answer(
-            "РЎР‘Рџ-РѕРїР»Р°С‚Р° РµС‰Рµ РЅРµ РЅР°СЃС‚СЂРѕРµРЅР°. Р”РѕР±Р°РІСЊС‚Рµ РґР°РЅРЅС‹Рµ Р®Kassa РІ `.env`, Рё Р·РґРµСЃСЊ РїРѕСЏРІРёС‚СЃСЏ Р±РѕРµРІР°СЏ РєРЅРѕРїРєР° РѕРїР»Р°С‚С‹. "
-            "РЎРµР№С‡Р°СЃ Р·Р°РєР°Р· РѕСЃС‚Р°РµС‚СЃСЏ РґР»СЏ СЂСѓС‡РЅРѕР№ РїСЂРѕРІРµСЂРєРё.",
+            "СБП-оплата еще не настроена. Добавьте данные ЮKassa в `.env`, и здесь появится рабочая кнопка оплаты. "
+            "Сейчас заказ остается для ручной проверки.",
             reply_markup=cancel_keyboard(),
         )
 
 
 @router.callback_query(F.data.startswith("paid:"))
 async def paid_handler(callback: CallbackQuery, session: AsyncSession):
-    await callback.answer("РџСЂРѕРІРµСЂСЏСЋ РѕРїР»Р°С‚Сѓ...")
+    await callback.answer("Проверяю оплату...")
 
     order_id = int(callback.data.split(":")[1])
     order = await get_order_by_id(session, order_id)
 
     if not order:
-        await callback.message.answer("Р—Р°РєР°Р· РЅРµ РЅР°Р№РґРµРЅ.")
+        await callback.message.answer("Заказ не найден.")
         return
 
     actor = await get_user_by_telegram_id(session, callback.from_user.id)
     if not actor:
-        await callback.message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ.")
+        await callback.message.answer("Пользователь не найден.")
         return
 
     if order.user_id != actor.id and not is_admin(callback.from_user.id):
-        await callback.message.answer("Р­С‚РѕС‚ Р·Р°РєР°Р· РїСЂРёРЅР°РґР»РµР¶РёС‚ РґСЂСѓРіРѕРјСѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ.")
+        await callback.message.answer("Этот заказ принадлежит другому пользователю.")
         return
 
     order_user = await get_user_by_id(session, order.user_id)
     if not order_user:
-        await callback.message.answer("Р’Р»Р°РґРµР»РµС† Р·Р°РєР°Р·Р° РЅРµ РЅР°Р№РґРµРЅ.")
+        await callback.message.answer("Владелец заказа не найден.")
         return
 
     if order.status == "paid":
-        await callback.message.answer("Р­С‚РѕС‚ Р·Р°РєР°Р· СѓР¶Рµ РѕРїР»Р°С‡РµРЅ.")
+        await callback.message.answer("Этот заказ уже оплачен.")
         return
 
     if not is_admin(callback.from_user.id):
         if not order.payment_id:
-            await callback.message.answer("Р”Р»СЏ СЌС‚РѕРіРѕ Р·Р°РєР°Р·Р° РµС‰Рµ РЅРµ СЃРѕР·РґР°РЅ РїР»Р°С‚РµР¶.")
+            await callback.message.answer("Для этого заказа еще не создан платеж.")
             return
 
         try:
             payment = await get_payment(order.payment_id)
         except YooKassaError:
-            await callback.message.answer("РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ СЃС‚Р°С‚СѓСЃ РѕРїР»Р°С‚С‹. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰Рµ СЂР°Р· С‡СѓС‚СЊ РїРѕР·Р¶Рµ.")
+            await callback.message.answer(
+                "Не удалось проверить статус оплаты. Попробуйте еще раз чуть позже."
+            )
             return
 
         if payment.status != "succeeded":
-            await callback.message.answer("РћРїР»Р°С‚Р° РµС‰Рµ РЅРµ РїРѕРґС‚РІРµСЂР¶РґРµРЅР°. Р•СЃР»Рё РІС‹ СѓР¶Рµ РѕРїР»Р°С‚РёР»Рё, РїРѕРґРѕР¶РґРёС‚Рµ РЅРµРјРЅРѕРіРѕ Рё РїСЂРѕРІРµСЂСЊС‚Рµ РµС‰Рµ СЂР°Р·.")
+            await callback.message.answer(
+                "Оплата еще не подтверждена. Если вы уже оплатили, подождите немного и проверьте еще раз."
+            )
             return
 
     try:
@@ -324,65 +328,65 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
     except ValueError as e:
         await session.rollback()
         if str(e) == "TARIFF_NOT_FOUND":
-            await callback.message.answer("РўР°СЂРёС„ Р·Р°РєР°Р·Р° РЅРµ РЅР°Р№РґРµРЅ.")
+            await callback.message.answer("Тариф заказа не найден.")
             return
         if str(e) == "NO_ACTIVE_SERVER":
-            await callback.message.answer("вљ пёЏ РЎРµР№С‡Р°СЃ РЅРµС‚ Р°РєС‚РёРІРЅРѕРіРѕ VPN-СЃРµСЂРІРµСЂР°. РЎРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ СЃРµСЂРІРµСЂ РІ Р±Р°Р·Сѓ.")
+            await callback.message.answer("⚠️ Сейчас нет активного VPN-сервера. Сначала добавьте сервер в базу.")
             return
         if str(e) == "DEVICE_LIMIT_REACHED":
-            await callback.message.answer("вљ пёЏ Р›РёРјРёС‚ СѓСЃС‚СЂРѕР№СЃС‚РІ РґР»СЏ СЌС‚РѕР№ РїРѕРґРїРёСЃРєРё СѓР¶Рµ РґРѕСЃС‚РёРіРЅСѓС‚.")
+            await callback.message.answer("⚠️ Лимит устройств для этой подписки уже достигнут.")
             return
         raise
 
     access_key_value = access_key.vless_uri or access_key.key_value
 
     await callback.message.answer(
-        "вњ… РћРїР»Р°С‚Р° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°!\n\n"
-        f"РџРѕРґРїРёСЃРєР° в„–{subscription.subscription_number}\n"
-        f"Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        "рџ”‘ Р’Р°С€ РєР»СЋС‡ VLESS:"
+        "✅ Оплата подтверждена!\n\n"
+        f"Подписка №{subscription.subscription_number}\n"
+        f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        "🔑 Ваш ключ VLESS:"
     )
     await callback.message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
-    await callback.message.answer("рџ“І РЎРєРѕРїРёСЂСѓР№С‚Рµ РєР»СЋС‡ Рё РёРјРїРѕСЂС‚РёСЂСѓР№С‚Рµ РµРіРѕ РІ Happ.")
+    await callback.message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
 
-@router.message(F.text == "рџ“± РњРѕСЏ РїРѕРґРїРёСЃРєР°")
+@router.message(F.text == "📱 Моя подписка")
 async def my_subscription_handler(message: Message, session: AsyncSession):
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start")
+        await message.answer("Пользователь не найден. Нажмите /start")
         return
 
     subscription = await get_active_subscription(session, user.id)
     if not subscription:
-        await message.answer("рџ™‚ РђРєС‚РёРІРЅРѕР№ РїРѕРґРїРёСЃРєРё РїРѕРєР° РЅРµС‚.")
+        await message.answer("🙂 Активной подписки пока нет.")
         return
 
     access_key = await get_subscription_access_key(session, subscription)
-    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "РљР»СЋС‡ РЅРµ РЅР°Р№РґРµРЅ"
+    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
 
     await message.answer(
-        "рџ“± Р’Р°С€Р° РїРѕРґРїРёСЃРєР°\n\n"
-        f"РџРѕРґРїРёСЃРєР° в„–{subscription.subscription_number}\n"
-        f"Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        "рџ”‘ Р’Р°С€ РєР»СЋС‡ VLESS:"
+        "📱 Ваша подписка\n\n"
+        f"Подписка №{subscription.subscription_number}\n"
+        f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        "🔑 Ваш ключ VLESS:"
     )
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
-    await message.answer("рџ“І РЎРєРѕРїРёСЂСѓР№С‚Рµ РєР»СЋС‡ Рё РёРјРїРѕСЂС‚РёСЂСѓР№С‚Рµ РµРіРѕ РІ Happ.")
+    await message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
 
-@router.message(F.text == "вњ‰пёЏ РР·РјРµРЅРёС‚СЊ email")
+@router.message(F.text == "✉️ Изменить email")
 async def change_email_start_handler(message: Message, state: FSMContext, session: AsyncSession):
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start", reply_markup=main_menu_keyboard())
+        await message.answer("Пользователь не найден. Нажмите /start", reply_markup=main_menu_keyboard())
         return
 
-    current_email = user.email or "РЅРµ СѓРєР°Р·Р°РЅ"
+    current_email = user.email or "не указан"
 
     await state.set_state(ChangeEmailState.waiting_for_new_email)
     await message.answer(
-        f"вњ‰пёЏ РўРµРєСѓС‰РёР№ email: {current_email}\n\nР’РІРµРґРёС‚Рµ РЅРѕРІС‹Р№ email:",
+        f"✉️ Текущий email: {current_email}\n\nВведите новый email:",
         reply_markup=cancel_keyboard(),
     )
 
@@ -390,7 +394,7 @@ async def change_email_start_handler(message: Message, state: FSMContext, sessio
 @router.message(ChangeEmailState.waiting_for_new_email)
 async def change_email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
     if not message.text:
-        await message.answer("РџРѕР¶Р°Р»СѓР№СЃС‚Р°, РѕС‚РїСЂР°РІСЊС‚Рµ email С‚РµРєСЃС‚РѕРј.", reply_markup=cancel_keyboard())
+        await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return
 
     try:
@@ -398,16 +402,16 @@ async def change_email_input_handler(message: Message, state: FSMContext, sessio
         email = valid.normalized
     except EmailNotValidError:
         await message.answer(
-            "рџ… РџРѕС…РѕР¶Рµ, СЌС‚Рѕ РЅРµ email.\n\n"
-            "РџСЂРёРјРµСЂ: name@example.com\n\n"
-            "Р’РІРµРґРёС‚Рµ email РµС‰Рµ СЂР°Р· РёР»Рё РЅР°Р¶РјРёС‚Рµ В«РћС‚РјРµРЅР°В».",
+            "😅 Похоже, это не email.\n\n"
+            "Пример: name@example.com\n\n"
+            "Введите email еще раз или нажмите «Отмена».",
             reply_markup=cancel_keyboard(),
         )
         return
 
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
-        await message.answer("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ. РќР°Р¶РјРёС‚Рµ /start", reply_markup=main_menu_keyboard())
+        await message.answer("Пользователь не найден. Нажмите /start", reply_markup=main_menu_keyboard())
         await state.clear()
         return
 
@@ -416,6 +420,6 @@ async def change_email_input_handler(message: Message, state: FSMContext, sessio
 
     active_subscription = await get_active_subscription(session, user.id)
     await message.answer(
-        f"вњ… Email РѕР±РЅРѕРІР»РµРЅ: {email}",
+        f"✅ Email обновлен: {email}",
         reply_markup=main_menu_keyboard(has_active_subscription=bool(active_subscription)),
     )

@@ -10,21 +10,21 @@ def main_menu_keyboard(
     has_active_subscription: bool = False,
     show_trial: bool = False,
 ) -> ReplyKeyboardMarkup:
-    first_button_text = "рџ”„ РџСЂРѕРґР»РёС‚СЊ РїРѕРґРїРёСЃРєСѓ" if has_active_subscription else "рџ’і РљСѓРїРёС‚СЊ РїРѕРґРїРёСЃРєСѓ"
+    first_button_text = "🔄 Продлить подписку" if has_active_subscription else "💳 Купить подписку"
 
     keyboard = [
         [KeyboardButton(text=first_button_text)],
     ]
 
     if show_trial:
-        keyboard.append([KeyboardButton(text="рџЋЃ РџСЂРѕР±РЅС‹Р№ РїРµСЂРёРѕРґ 7 РґРЅРµР№")])
+        keyboard.append([KeyboardButton(text="🎁 Пробный период 7 дней")])
 
     keyboard.extend(
         [
-            [KeyboardButton(text="рџ“± РњРѕСЏ РїРѕРґРїРёСЃРєР°")],
-            [KeyboardButton(text="вњ‰пёЏ РР·РјРµРЅРёС‚СЊ email")],
-            [KeyboardButton(text="рџЋ‰ Р РµС„РµСЂР°Р»СЊРЅР°СЏ РїСЂРѕРіСЂР°РјРјР°")],
-            [KeyboardButton(text="рџ“ РРЅСЃС‚СЂСѓРєС†РёСЏ"), KeyboardButton(text="рџ’¬ РџРѕРґРґРµСЂР¶РєР°")],
+            [KeyboardButton(text="📱 Моя подписка")],
+            [KeyboardButton(text="✉️ Изменить email")],
+            [KeyboardButton(text="🎉 Реферальная программа")],
+            [KeyboardButton(text="📘 Инструкция"), KeyboardButton(text="💬 Поддержка")],
         ]
     )
 
@@ -37,8 +37,8 @@ def main_menu_keyboard(
 def cancel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="вќЊ РћС‚РјРµРЅР°")],
-            [KeyboardButton(text="рџЏ  Р“Р»Р°РІРЅРѕРµ РјРµРЅСЋ")],
+            [KeyboardButton(text="❌ Отмена")],
+            [KeyboardButton(text="🏠 Главное меню")],
         ],
         resize_keyboard=True,
     )
@@ -50,7 +50,7 @@ def tariffs_keyboard(tariffs: list[dict]) -> InlineKeyboardMarkup:
         buttons.append(
             [
                 InlineKeyboardButton(
-                    text=f"вњЁ {tariff['name']} - {tariff['price_rub']} RUB",
+                    text=f"✨ {tariff['name']} - {tariff['price_rub']} RUB",
                     callback_data=f"tariff:{tariff['id']}",
                 )
             ]
@@ -63,11 +63,11 @@ def payment_methods_keyboard(order_id: int, payment_url: str | None = None) -> I
 
     if payment_url:
         inline_keyboard.append(
-            [InlineKeyboardButton(text="РћРїР»Р°С‚РёС‚СЊ С‡РµСЂРµР· РЎР‘Рџ", url=payment_url)]
+            [InlineKeyboardButton(text="Оплатить через СБП", url=payment_url)]
         )
 
     inline_keyboard.append(
-        [InlineKeyboardButton(text="вњ… РџСЂРѕРІРµСЂРёС‚СЊ РѕРїР»Р°С‚Сѓ", callback_data=f"paid:{order_id}")]
+        [InlineKeyboardButton(text="✅ Проверить оплату", callback_data=f"paid:{order_id}")]
     )
 
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
