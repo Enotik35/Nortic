@@ -123,14 +123,20 @@ def extract_start_ref_code(text: str | None) -> str | None:
     return payload.removeprefix("ref_").strip()
 
 
-async def show_main_menu(message: Message, state: FSMContext, session: AsyncSession):
+async def show_main_menu(
+    message: Message,
+    state: FSMContext | None,
+    session: AsyncSession,
+    telegram_id: int | None = None,
+    telegram_username: str | None = None,
+):
     if state is not None:
         await state.clear()
 
     user = await create_user_if_not_exists(
         session=session,
-        telegram_id=message.from_user.id,
-        telegram_username=message.from_user.username,
+        telegram_id=telegram_id or message.from_user.id,
+        telegram_username=telegram_username if telegram_id is not None else message.from_user.username,
     )
 
     active_subscription = await get_active_subscription(session, user.id)

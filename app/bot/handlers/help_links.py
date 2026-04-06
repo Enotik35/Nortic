@@ -154,4 +154,10 @@ async def legal_accept_handler(callback: CallbackQuery, session):
 
     from app.bot.handlers.start import show_main_menu
 
-    await show_main_menu(callback.message, state=None, session=session)
+    await show_main_menu(
+        callback.message,
+        state=None,
+        session=session,
+        telegram_id=callback.from_user.id,
+        telegram_username=callback.from_user.username,
+    )
