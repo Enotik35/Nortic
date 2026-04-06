@@ -24,6 +24,7 @@ def main_menu_keyboard(
             [KeyboardButton(text="📱 Моя подписка")],
             [KeyboardButton(text="✉️ Изменить email")],
             [KeyboardButton(text="🎉 Реферальная программа")],
+            [KeyboardButton(text="ℹ️ Инфо")],
             [KeyboardButton(text="📘 Инструкция"), KeyboardButton(text="💬 Поддержка")],
         ]
     )

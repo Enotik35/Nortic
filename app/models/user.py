@@ -13,6 +13,8 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     trial_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    legal_accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    legal_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
         
     ref_code: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
     referred_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)

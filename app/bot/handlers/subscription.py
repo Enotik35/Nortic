@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.handlers.help_links import send_legal_consent_prompt
 from app.bot.keyboards.common import (
     cancel_keyboard,
     main_menu_keyboard,
@@ -18,6 +19,7 @@ from app.repositories.subscriptions import get_active_subscription
 from app.repositories.tariffs import get_active_tariffs, get_tariff_by_id
 from app.repositories.users import get_user_by_id, get_user_by_telegram_id, update_user_email
 from app.services.discount_service import apply_discount, get_best_discount_details
+from app.services.legal_service import has_user_accepted_legal
 from app.services.order_activation import activate_paid_order, get_subscription_access_key
 from app.services.yookassa import YooKassaError, create_sbp_payment, get_payment
 
@@ -30,6 +32,32 @@ def is_admin(user_id: int) -> bool:
     return user_id in admin_ids
 
 
+async def ensure_legal_accepted_for_message(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext | None = None,
+) -> bool:
+    user = await get_user_by_telegram_id(session, message.from_user.id)
+    if user and has_user_accepted_legal(user):
+        return True
+
+    if state is not None:
+        await state.clear()
+
+    await send_legal_consent_prompt(message)
+    return False
+
+
+async def ensure_legal_accepted_for_callback(callback: CallbackQuery, session: AsyncSession) -> bool:
+    user = await get_user_by_telegram_id(session, callback.from_user.id)
+    if user and has_user_accepted_legal(user):
+        return True
+
+    await callback.answer("Сначала примите условия сервиса", show_alert=True)
+    await send_legal_consent_prompt(callback.message)
+    return False
+
+
 @router.message(BuySubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
 @router.message(TrialSubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
 async def my_subscription_from_email_state(
@@ -37,6 +65,9 @@ async def my_subscription_from_email_state(
     state: FSMContext,
     session: AsyncSession,
 ):
+    if not await ensure_legal_accepted_for_message(message, session, state):
+        return
+
     await state.clear()
 
     user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -65,6 +96,9 @@ async def my_subscription_from_email_state(
 
 @router.message(BuySubscriptionState.waiting_for_email)
 async def email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
+    if not await ensure_legal_accepted_for_message(message, session, state):
+        return
+
     if not message.text:
         await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return
@@ -116,6 +150,9 @@ async def email_input_handler(message: Message, state: FSMContext, session: Asyn
 
 @router.message(TrialSubscriptionState.waiting_for_email)
 async def trial_email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
+    if not await ensure_legal_accepted_for_message(message, session, state):
+        return
+
     if not message.text:
         await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return
@@ -150,7 +187,11 @@ async def trial_email_input_handler(message: Message, state: FSMContext, session
 
 @router.callback_query(F.data.startswith("tariff:"))
 async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession):
+    if not await ensure_legal_accepted_for_callback(callback, session):
+        return
+
     await callback.answer()
+
     tariff_id = int(callback.data.split(":")[1])
     tariff = await get_tariff_by_id(session, tariff_id)
 
@@ -271,6 +312,9 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
 
 @router.callback_query(F.data.startswith("paid:"))
 async def paid_handler(callback: CallbackQuery, session: AsyncSession):
+    if not await ensure_legal_accepted_for_callback(callback, session):
+        return
+
     await callback.answer("Проверяю оплату...")
 
     order_id = int(callback.data.split(":")[1])
@@ -359,6 +403,9 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
 
 @router.message(F.text == "📱 Моя подписка")
 async def my_subscription_handler(message: Message, session: AsyncSession):
+    if not await ensure_legal_accepted_for_message(message, session):
+        return
+
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
         await message.answer("Пользователь не найден. Нажмите /start")
@@ -384,6 +431,9 @@ async def my_subscription_handler(message: Message, session: AsyncSession):
 
 @router.message(F.text == "✉️ Изменить email")
 async def change_email_start_handler(message: Message, state: FSMContext, session: AsyncSession):
+    if not await ensure_legal_accepted_for_message(message, session, state):
+        return
+
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
         await message.answer("Пользователь не найден. Нажмите /start", reply_markup=main_menu_keyboard())
@@ -400,6 +450,9 @@ async def change_email_start_handler(message: Message, state: FSMContext, sessio
 
 @router.message(ChangeEmailState.waiting_for_new_email)
 async def change_email_input_handler(message: Message, state: FSMContext, session: AsyncSession):
+    if not await ensure_legal_accepted_for_message(message, session, state):
+        return
+
     if not message.text:
         await message.answer("Пожалуйста, отправьте email текстом.", reply_markup=cancel_keyboard())
         return

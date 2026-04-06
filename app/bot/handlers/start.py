@@ -3,6 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bot.handlers.help_links import send_legal_consent_prompt
 from app.bot.keyboards.common import cancel_keyboard, main_menu_keyboard, tariffs_keyboard
 from app.bot.states import BuySubscriptionState, TrialSubscriptionState
 from app.core.config import parse_admin_telegram_ids, settings
@@ -23,6 +24,7 @@ from app.repositories.users import (
     mark_trial_used,
     set_referred_by_user,
 )
+from app.services.legal_service import has_user_accepted_legal
 from app.services.discount_service import get_referral_discount_percent
 from app.services.subscription_service import create_or_extend_subscription
 from app.services.vpn_service import issue_vpn_key_for_subscription
@@ -122,7 +124,8 @@ def extract_start_ref_code(text: str | None) -> str | None:
 
 
 async def show_main_menu(message: Message, state: FSMContext, session: AsyncSession):
-    await state.clear()
+    if state is not None:
+        await state.clear()
 
     user = await create_user_if_not_exists(
         session=session,
@@ -131,6 +134,10 @@ async def show_main_menu(message: Message, state: FSMContext, session: AsyncSess
     )
 
     active_subscription = await get_active_subscription(session, user.id)
+
+    if not has_user_accepted_legal(user):
+        await send_legal_consent_prompt(message)
+        return
 
     await message.answer(
         "👋 Добро пожаловать в Nortic!\n\n"
@@ -252,6 +259,10 @@ async def buy_subscription_handler(message: Message, state: FSMContext, session:
             telegram_username=message.from_user.username,
         )
 
+    if not has_user_accepted_legal(user):
+        await send_legal_consent_prompt(message)
+        return
+
     if user.email:
         tariffs = await get_active_tariffs(session)
         if not tariffs:
@@ -289,6 +300,10 @@ async def referral_program_handler(message: Message, session: AsyncSession):
     user = await get_user_by_telegram_id(session, message.from_user.id)
     if not user:
         await message.answer("Пользователь не найден. Нажмите /start")
+        return
+
+    if not has_user_accepted_legal(user):
+        await send_legal_consent_prompt(message)
         return
 
     user = await ensure_user_ref_code(session, user)
@@ -330,6 +345,10 @@ async def activate_trial_handler(message: Message, state: FSMContext, session: A
             telegram_id=message.from_user.id,
             telegram_username=message.from_user.username,
         )
+
+    if not has_user_accepted_legal(user):
+        await send_legal_consent_prompt(message)
+        return
 
     if user.trial_used:
         await message.answer(

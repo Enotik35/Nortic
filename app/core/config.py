@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     yookassa_secret_key: str = ""
     yookassa_return_url: str = ""
     internal_api_token: str = ""
+    instruction_url: str = "https://t.me/Norticboost/3"
+    support_url: str = "https://t.me/nortic_team"
+    privacy_policy_url: str = ""
+    terms_of_service_url: str = ""
+    legal_version: str = "2026-04-06"
 
     model_config = SettingsConfigDict(
         env_file=".env",

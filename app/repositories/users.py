@@ -1,4 +1,5 @@
 import secrets
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,6 +71,14 @@ async def set_referred_by_user(session: AsyncSession, user: User, referrer_user_
 
 async def mark_trial_used(session: AsyncSession, user: User) -> User:
     user.trial_used = True
+    await session.flush()
+    await session.refresh(user)
+    return user
+
+
+async def mark_legal_accepted(session: AsyncSession, user: User, legal_version: str) -> User:
+    user.legal_accepted_at = datetime.utcnow()
+    user.legal_version = legal_version
     await session.flush()
     await session.refresh(user)
     return user
