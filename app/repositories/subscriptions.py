@@ -37,3 +37,37 @@ async def get_active_subscription(session: AsyncSession, user_id: int) -> Subscr
         .order_by(Subscription.end_at.desc())
     )
     return result.scalars().first()
+
+
+async def get_active_subscription_by_id(session: AsyncSession, subscription_id: int) -> Subscription | None:
+    result = await session.execute(
+        select(Subscription).where(Subscription.id == subscription_id)
+    )
+    subscription = result.scalar_one_or_none()
+    if not subscription:
+        return None
+
+    now = datetime.utcnow()
+    if subscription.status == "active" and subscription.end_at < now:
+        subscription.status = "expired"
+        await session.flush()
+        return None
+
+    return subscription if subscription.status == "active" else None
+
+
+async def get_active_subscription_by_token(session: AsyncSession, token: str) -> Subscription | None:
+    result = await session.execute(
+        select(Subscription).where(Subscription.subscription_token == token)
+    )
+    subscription = result.scalar_one_or_none()
+    if not subscription:
+        return None
+
+    now = datetime.utcnow()
+    if subscription.status == "active" and subscription.end_at < now:
+        subscription.status = "expired"
+        await session.flush()
+        return None
+
+    return subscription if subscription.status == "active" else None

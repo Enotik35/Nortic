@@ -13,6 +13,7 @@ class Subscription(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
     subscription_number: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    subscription_token: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="active")
     start_at: Mapped[datetime] = mapped_column(DateTime)
     end_at: Mapped[datetime] = mapped_column(DateTime)

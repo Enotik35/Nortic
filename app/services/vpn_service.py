@@ -1,5 +1,6 @@
 import uuid as uuid_lib
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,6 +55,38 @@ def dt_to_3xui_ms(dt: datetime | None) -> int:
         dt = dt.replace(tzinfo=timezone.utc)
 
     return int(dt.timestamp() * 1000)
+
+
+def build_subscription_url(
+    *,
+    subscription_token: str | None = None,
+    subscription_id: int | None = None,
+) -> str | None:
+    base_url = settings.threexui_subscription_base_url.strip() or settings.threexui_base_url.strip()
+    if not base_url:
+        return None
+
+    parsed = urlparse(base_url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    base_path = parsed.path.rstrip("/")
+    if subscription_token:
+        return f"{parsed.scheme}://{parsed.netloc}{base_path}/s/{subscription_token}"
+    if subscription_id is not None:
+        return f"{parsed.scheme}://{parsed.netloc}{base_path}/sub/{subscription_id}"
+    return None
+
+
+def get_access_key_delivery_value(access_key: AccessKey | None) -> str:
+    if not access_key:
+        return "Ключ не найден"
+
+    computed_subscription_url = None
+    if access_key.subscription_id is not None:
+        computed_subscription_url = build_subscription_url(subscription_id=access_key.subscription_id)
+
+    return access_key.subscription_url or computed_subscription_url or access_key.vless_uri or access_key.key_value
 
 
 async def issue_vpn_key_for_subscription(
@@ -145,6 +178,10 @@ async def issue_vpn_key_for_subscription(
         security=server.security,
         transport=server.transport,
     )
+    subscription_url = build_subscription_url(
+        subscription_token=subscription.subscription_token,
+        subscription_id=subscription.id,
+    )
 
     access_key = await create_access_key(
         session=session,
@@ -156,6 +193,7 @@ async def issue_vpn_key_for_subscription(
         uuid=uuid,
         external_client_id=uuid,
         vless_uri=vless_uri,
+        subscription_url=subscription_url,
         expires_at=subscription.end_at,
     )
 
@@ -227,3 +265,8 @@ async def sync_existing_key_expiry_in_3xui(
             transport=server.transport,
         )
         access_key.key_value = access_key.vless_uri
+
+    access_key.subscription_url = build_subscription_url(
+        subscription_token=subscription.subscription_token,
+        subscription_id=subscription.id,
+    )

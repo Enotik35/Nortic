@@ -1,9 +1,16 @@
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import is_internal_api_token_configured, settings
 from app.core.db import get_db
+from app.repositories.access_keys import get_latest_access_key_by_subscription
+from app.repositories.subscriptions import (
+    get_active_subscription_by_id,
+    get_active_subscription_by_token,
+)
 from app.services.payment_activation import activate_order_from_payment
+from app.services.vpn_service import build_vless_uri, get_server_for_access_key
 from app.services.yookassa import YooKassaError
 
 app = FastAPI(title="Subscription Bot API")
@@ -12,6 +19,64 @@ app = FastAPI(title="Subscription Bot API")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+async def build_subscription_payload(session: AsyncSession, subscription_id: int) -> str:
+    access_key = await get_latest_access_key_by_subscription(session, subscription_id)
+    if not access_key or not access_key.uuid:
+        raise HTTPException(status_code=404, detail="Subscription key not found")
+
+    server = await get_server_for_access_key(session, access_key)
+    if not server:
+        if access_key.vless_uri:
+            return access_key.vless_uri.strip()
+        raise HTTPException(status_code=503, detail="No active VPN servers")
+
+    label_suffix = str(access_key.device_id or subscription_id)
+    return build_vless_uri(
+        host=server.host,
+        port=server.port,
+        public_key=server.public_key,
+        short_id=server.short_id,
+        sni=server.sni,
+        uuid=access_key.uuid,
+        label=f"Nortic-{server.name}-{label_suffix}",
+        flow=server.flow,
+        security=server.security,
+        transport=server.transport,
+    )
+
+
+@app.get("/s/{subscription_token}", response_class=PlainTextResponse)
+async def subscription_by_token(subscription_token: str, session: AsyncSession = Depends(get_db)):
+    subscription = await get_active_subscription_by_token(session, subscription_token)
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    payload = await build_subscription_payload(session, subscription.id)
+    return PlainTextResponse(
+        payload,
+        headers={
+            "cache-control": "no-store",
+            "x-subscription-source": "nortic-api",
+        },
+    )
+
+
+@app.get("/sub/{subscription_id}", response_class=PlainTextResponse)
+async def subscription_by_id(subscription_id: int, session: AsyncSession = Depends(get_db)):
+    subscription = await get_active_subscription_by_id(session, subscription_id)
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    payload = await build_subscription_payload(session, subscription.id)
+    return PlainTextResponse(
+        payload,
+        headers={
+            "cache-control": "no-store",
+            "x-subscription-source": "nortic-api",
+        },
+    )
 
 
 @app.post("/webhooks/yookassa")

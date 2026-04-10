@@ -49,17 +49,20 @@ Files:
 - `netlify.toml`
 - `netlify/functions/yookassa-webhook.js`
 - `netlify/functions/payment-return.js`
+- `netlify/functions/subscription-proxy.js`
 
 Netlify environment variables:
 
 - `YOOKASSA_SHOP_ID`
 - `YOOKASSA_SECRET_KEY`
 - `BACKEND_ACTIVATE_URL`
+- `BACKEND_BASE_URL`
 - `INTERNAL_API_TOKEN`
 
 Recommended values:
 
 - `BACKEND_ACTIVATE_URL=http://YOUR_VPS_IP:8000/internal/yookassa/activate`
+- `BACKEND_BASE_URL=http://YOUR_VPS_IP:8000`
 - `INTERNAL_API_TOKEN` should match `INTERNAL_API_TOKEN` in `.env.production`
 
 Then set YooKassa webhook to:
@@ -71,6 +74,7 @@ And set the YooKassa return URL to:
 - `https://example.com/payment-return`
 
 In this fallback topology, the public webhook lives on Netlify, while the actual subscription activation still happens in the Python backend on the VPS.
+The same pattern is used for subscription links, so users can keep one public `https://your-domain/s/...` URL while you move the backend or VPN servers later.
 
 ### Migration To Another VPS Later
 
@@ -81,6 +85,6 @@ To move to another VPS later:
 3. Migrate PostgreSQL data.
 4. Start the new stack.
 5. Verify `http://NEW_VPS_IP:8000/health`.
-6. Update `BACKEND_ACTIVATE_URL` on Netlify to the new VPS IP.
+6. Update `BACKEND_ACTIVATE_URL` and `BACKEND_BASE_URL` on Netlify to the new VPS IP.
 
 Because the public Netlify URLs stay the same, YooKassa does not need code changes when the VPS changes.

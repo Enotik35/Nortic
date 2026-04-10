@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +51,8 @@ async def create_or_extend_subscription(
     now = datetime.utcnow()
 
     if active_subscription and active_subscription.end_at > now:
+        if not active_subscription.subscription_token:
+            active_subscription.subscription_token = secrets.token_urlsafe(24)
         active_subscription.end_at = active_subscription.end_at + timedelta(days=tariff.duration_days)
         active_subscription.order_id = order_id
         active_subscription.access_key_id = access_key_id
@@ -62,6 +65,7 @@ async def create_or_extend_subscription(
         user_id=user.id,
         order_id=order_id,
         subscription_number=f"SUB-{user.id}-{order_id}",
+        subscription_token=secrets.token_urlsafe(24),
         status="active",
         start_at=now,
         end_at=now + timedelta(days=tariff.duration_days),
