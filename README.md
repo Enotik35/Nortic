@@ -76,6 +76,13 @@ And set the YooKassa return URL to:
 In this fallback topology, the public webhook lives on Netlify, while the actual subscription activation still happens in the Python backend on the VPS.
 The same pattern is used for subscription links, so users can keep one public `https://your-domain/s/...` URL while you move the backend or VPN servers later.
 
+### Multi-Server Subscription Notes
+
+- Every active server can have its own 3x-ui panel settings stored in the `servers` table.
+- If a server does not have panel settings filled in, the app falls back to global `THREEXUI_*` values from `.env`.
+- The public subscription endpoint `/s/<token>` returns configs for all active servers and adds standard profile headers for clients such as Happ.
+- To seed one server with explicit panel settings, use `SEED_SERVER_PANEL_*` environment variables with `python -m app.init_data`.
+
 ### Migration To Another VPS Later
 
 To move to another VPS later:

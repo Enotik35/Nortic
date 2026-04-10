@@ -22,6 +22,11 @@ class Server(Base):
     flow: Mapped[str] = mapped_column(String(64), nullable=False, default="xtls-rprx-vision")
     security: Mapped[str] = mapped_column(String(32), nullable=False, default="reality")
     transport: Mapped[str] = mapped_column(String(32), nullable=False, default="tcp")
+    panel_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    panel_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    panel_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    panel_inbound_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    panel_verify_ssl: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

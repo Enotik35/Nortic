@@ -11,3 +11,12 @@ async def get_active_server(session: AsyncSession) -> Server | None:
         .order_by(Server.id.asc())
     )
     return result.scalars().first()
+
+
+async def get_active_servers(session: AsyncSession) -> list[Server]:
+    result = await session.execute(
+        select(Server)
+        .where(Server.is_active.is_(True))
+        .order_by(Server.id.asc())
+    )
+    return list(result.scalars().all())

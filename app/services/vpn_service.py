@@ -12,7 +12,7 @@ from app.models.subscription import Subscription
 from app.models.user import User
 from app.repositories.access_keys import create_access_key
 from app.repositories.devices import count_active_devices, create_device
-from app.repositories.servers import get_active_server
+from app.repositories.servers import get_active_server, get_active_servers
 from app.services.three_xui_provider import ThreeXUIProvider
 
 
@@ -84,6 +84,202 @@ def get_access_key_delivery_value(access_key: AccessKey | None) -> str:
     return access_key.subscription_url or access_key.vless_uri or access_key.key_value
 
 
+def build_provider_for_server(server: Server) -> tuple[ThreeXUIProvider, int]:
+    base_url = (server.panel_base_url or settings.threexui_base_url).strip()
+    username = (server.panel_username or settings.threexui_username).strip()
+    password = (server.panel_password or settings.threexui_password).strip()
+    inbound_id = server.panel_inbound_id or settings.threexui_inbound_id
+    verify_ssl = settings.threexui_verify_ssl if server.panel_verify_ssl is None else server.panel_verify_ssl
+
+    if not base_url or not username or not password or not inbound_id:
+        raise ValueError(f"SERVER_PANEL_CONFIG_MISSING:{server.name}")
+
+    return (
+        ThreeXUIProvider(
+            base_url=base_url,
+            username=username,
+            password=password,
+            verify_ssl=verify_ssl,
+        ),
+        inbound_id,
+    )
+
+
+async def add_or_replace_client_on_server(
+    *,
+    server: Server,
+    client_id: str,
+    email: str,
+    flow: str,
+    expiry_time_ms: int,
+    user_telegram_id: int,
+    subscription_sub_id: str,
+    comment: str,
+) -> None:
+    provider, inbound_id = build_provider_for_server(server)
+    try:
+        await provider.add_vless_client(
+            inbound_id=inbound_id,
+            client_id=client_id,
+            email=email,
+            flow=flow,
+            limit_ip=0,
+            total_gb=0,
+            expiry_time_ms=expiry_time_ms,
+            enable=True,
+            tg_id=str(user_telegram_id),
+            sub_id=subscription_sub_id,
+            comment=comment,
+        )
+    except Exception as exc:
+        if "Duplicate email" in str(exc):
+            await provider.delete_vless_client_by_email(
+                inbound_id=inbound_id,
+                email=email,
+            )
+            await provider.add_vless_client(
+                inbound_id=inbound_id,
+                client_id=client_id,
+                email=email,
+                flow=flow,
+                limit_ip=0,
+                total_gb=0,
+                expiry_time_ms=expiry_time_ms,
+                enable=True,
+                tg_id=str(user_telegram_id),
+                sub_id=subscription_sub_id,
+                comment=comment,
+            )
+        else:
+            raise
+    finally:
+        await provider.aclose()
+
+
+async def upsert_client_on_server(
+    *,
+    server: Server,
+    client_id: str,
+    email: str,
+    flow: str,
+    expiry_time_ms: int,
+    user_telegram_id: int,
+    subscription_sub_id: str,
+    comment: str,
+) -> None:
+    provider, inbound_id = build_provider_for_server(server)
+    try:
+        try:
+            await provider.update_vless_client(
+                client_id=client_id,
+                email=email,
+                inbound_id=inbound_id,
+                flow=flow,
+                limit_ip=0,
+                total_gb=0,
+                expiry_time_ms=expiry_time_ms,
+                enable=True,
+                tg_id=str(user_telegram_id),
+                sub_id=subscription_sub_id,
+                comment=comment,
+            )
+        except Exception:
+            await provider.add_vless_client(
+                inbound_id=inbound_id,
+                client_id=client_id,
+                email=email,
+                flow=flow,
+                limit_ip=0,
+                total_gb=0,
+                expiry_time_ms=expiry_time_ms,
+                enable=True,
+                tg_id=str(user_telegram_id),
+                sub_id=subscription_sub_id,
+                comment=comment,
+            )
+    except Exception as exc:
+        if "Duplicate email" in str(exc):
+            await provider.delete_vless_client_by_email(
+                inbound_id=inbound_id,
+                email=email,
+            )
+            await provider.add_vless_client(
+                inbound_id=inbound_id,
+                client_id=client_id,
+                email=email,
+                flow=flow,
+                limit_ip=0,
+                total_gb=0,
+                expiry_time_ms=expiry_time_ms,
+                enable=True,
+                tg_id=str(user_telegram_id),
+                sub_id=subscription_sub_id,
+                comment=comment,
+            )
+        else:
+            raise
+    finally:
+        await provider.aclose()
+
+
+async def ensure_access_key_on_active_servers(
+    *,
+    session: AsyncSession,
+    access_key: AccessKey,
+    subscription: Subscription,
+    user: User,
+) -> list[Server]:
+    servers = await get_active_servers(session)
+    if not servers:
+        raise ValueError("NO_ACTIVE_SERVER")
+
+    client_id = access_key.external_client_id or access_key.uuid
+    if not client_id:
+        raise ValueError("ACCESS_KEY_UUID_MISSING")
+
+    email = f"tg-{user.telegram_id}-sub-{subscription.id}-dev-{access_key.device_id}"
+    expiry_time_ms = dt_to_3xui_ms(subscription.end_at)
+    subscription_sub_id = subscription.subscription_token or str(subscription.id)
+    comment = f"subscription={subscription.id};device={access_key.device_id}"
+
+    for server in servers:
+        await upsert_client_on_server(
+            server=server,
+            client_id=client_id,
+            email=email,
+            flow=server.flow,
+            expiry_time_ms=expiry_time_ms,
+            user_telegram_id=user.telegram_id,
+            subscription_sub_id=subscription_sub_id,
+            comment=comment,
+        )
+
+    primary_server = servers[0]
+    access_key.server_id = primary_server.id
+    if access_key.uuid:
+        label = f"Nortic-{user.telegram_id}-{access_key.device_id}"
+        access_key.vless_uri = build_vless_uri(
+            host=primary_server.host,
+            port=primary_server.port,
+            public_key=primary_server.public_key,
+            short_id=primary_server.short_id,
+            sni=primary_server.sni,
+            uuid=access_key.uuid,
+            label=label,
+            flow=primary_server.flow,
+            security=primary_server.security,
+            transport=primary_server.transport,
+        )
+        access_key.key_value = access_key.vless_uri
+
+    access_key.subscription_url = build_subscription_url(
+        subscription_token=subscription.subscription_token,
+        subscription_id=subscription.id,
+    )
+    access_key.expires_at = subscription.end_at
+    return servers
+
+
 async def issue_vpn_key_for_subscription(
     session: AsyncSession,
     *,
@@ -96,9 +292,10 @@ async def issue_vpn_key_for_subscription(
     if active_devices_count >= subscription.device_limit_snapshot:
         raise ValueError("DEVICE_LIMIT_REACHED")
 
-    server = await get_active_server(session)
-    if not server:
+    servers = await get_active_servers(session)
+    if not servers:
         raise ValueError("NO_ACTIVE_SERVER")
+    primary_server = servers[0]
 
     device = await create_device(
         session=session,
@@ -114,64 +311,29 @@ async def issue_vpn_key_for_subscription(
     client_email = f"tg-{user.telegram_id}-sub-{subscription.id}-dev-{device.id}"
     label = f"Nortic-{user.telegram_id}-{device.id}"
 
-    provider = ThreeXUIProvider(
-        base_url=settings.threexui_base_url,
-        username=settings.threexui_username,
-        password=settings.threexui_password,
-        verify_ssl=settings.threexui_verify_ssl,
-    )
-
-    try:
-        await provider.add_vless_client(
-            inbound_id=settings.threexui_inbound_id,
+    for server in servers:
+        await add_or_replace_client_on_server(
+            server=server,
             client_id=uuid,
             email=client_email,
             flow=server.flow,
-            limit_ip=0,
-            total_gb=0,
             expiry_time_ms=dt_to_3xui_ms(subscription.end_at),
-            enable=True,
-            tg_id=str(user.telegram_id),
-            sub_id=str(subscription.id),
+            user_telegram_id=user.telegram_id,
+            subscription_sub_id=subscription.subscription_token or str(subscription.id),
             comment=f"user={user.id};device={device.id}",
         )
-    except Exception as exc:
-        error_text = str(exc)
-
-        if "Duplicate email" in error_text:
-            await provider.delete_vless_client_by_email(
-                inbound_id=settings.threexui_inbound_id,
-                email=client_email,
-            )
-            await provider.add_vless_client(
-                inbound_id=settings.threexui_inbound_id,
-                client_id=uuid,
-                email=client_email,
-                flow=server.flow,
-                limit_ip=0,
-                total_gb=0,
-                expiry_time_ms=dt_to_3xui_ms(subscription.end_at),
-                enable=True,
-                tg_id=str(user.telegram_id),
-                sub_id=str(subscription.id),
-                comment=f"user={user.id};device={device.id}",
-            )
-        else:
-            raise
-    finally:
-        await provider.aclose()
 
     vless_uri = build_vless_uri(
-        host=server.host,
-        port=server.port,
-        public_key=server.public_key,
-        short_id=server.short_id,
-        sni=server.sni,
+        host=primary_server.host,
+        port=primary_server.port,
+        public_key=primary_server.public_key,
+        short_id=primary_server.short_id,
+        sni=primary_server.sni,
         uuid=uuid,
         label=label,
-        flow=server.flow,
-        security=server.security,
-        transport=server.transport,
+        flow=primary_server.flow,
+        security=primary_server.security,
+        transport=primary_server.transport,
     )
     subscription_url = build_subscription_url(
         subscription_token=subscription.subscription_token,
@@ -184,7 +346,7 @@ async def issue_vpn_key_for_subscription(
         user_id=user.id,
         subscription_id=subscription.id,
         device_id=device.id,
-        server_id=server.id,
+        server_id=primary_server.id,
         uuid=uuid,
         external_client_id=uuid,
         vless_uri=vless_uri,
@@ -214,54 +376,10 @@ async def sync_existing_key_expiry_in_3xui(
     subscription: Subscription,
     user_telegram_id: int,
 ):
-    server = await get_server_for_access_key(session, access_key)
-    provider = ThreeXUIProvider(
-        base_url=settings.threexui_base_url,
-        username=settings.threexui_username,
-        password=settings.threexui_password,
-        verify_ssl=settings.threexui_verify_ssl,
-    )
-
-    try:
-        client_id = access_key.external_client_id or access_key.uuid
-        email = f"tg-{user_telegram_id}-sub-{subscription.id}-dev-{access_key.device_id}"
-        flow = server.flow if server else "xtls-rprx-vision"
-
-        await provider.update_vless_client(
-            client_id=client_id,
-            email=email,
-            inbound_id=settings.threexui_inbound_id,
-            flow=flow,
-            limit_ip=0,
-            total_gb=0,
-            expiry_time_ms=dt_to_3xui_ms(subscription.end_at),
-            enable=True,
-            tg_id=str(user_telegram_id),
-            sub_id=str(subscription.id),
-            comment=f"subscription={subscription.id};device={access_key.device_id}",
-        )
-    finally:
-        await provider.aclose()
-
-    access_key.expires_at = subscription.end_at
-
-    if server and access_key.uuid:
-        label = f"Nortic-{user_telegram_id}-{access_key.device_id}"
-        access_key.vless_uri = build_vless_uri(
-            host=server.host,
-            port=server.port,
-            public_key=server.public_key,
-            short_id=server.short_id,
-            sni=server.sni,
-            uuid=access_key.uuid,
-            label=label,
-            flow=server.flow,
-            security=server.security,
-            transport=server.transport,
-        )
-        access_key.key_value = access_key.vless_uri
-
-    access_key.subscription_url = build_subscription_url(
-        subscription_token=subscription.subscription_token,
-        subscription_id=subscription.id,
+    user = User(id=access_key.user_id or 0, telegram_id=user_telegram_id)
+    await ensure_access_key_on_active_servers(
+        session=session,
+        access_key=access_key,
+        subscription=subscription,
+        user=user,
     )

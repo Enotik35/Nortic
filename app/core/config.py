@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     privacy_policy_url: str = ""
     terms_of_service_url: str = ""
     legal_version: str = "2026-04-06"
+    subscription_profile_title: str = "Nortic"
+    subscription_update_interval_hours: int = 3
+    subscription_profile_url: str = ""
+    subscription_announce: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

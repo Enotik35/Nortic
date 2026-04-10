@@ -102,6 +102,11 @@ def read_server_seed() -> dict | None:
         "flow": os.getenv("SEED_SERVER_FLOW", "xtls-rprx-vision").strip(),
         "security": os.getenv("SEED_SERVER_SECURITY", "reality").strip(),
         "transport": os.getenv("SEED_SERVER_TRANSPORT", "tcp").strip(),
+        "panel_base_url": os.getenv("SEED_SERVER_PANEL_BASE_URL", "").strip() or None,
+        "panel_username": os.getenv("SEED_SERVER_PANEL_USERNAME", "").strip() or None,
+        "panel_password": os.getenv("SEED_SERVER_PANEL_PASSWORD", "").strip() or None,
+        "panel_inbound_id": int(os.getenv("SEED_SERVER_PANEL_INBOUND_ID", "0")) or None,
+        "panel_verify_ssl": env_flag("SEED_SERVER_PANEL_VERIFY_SSL", True),
         "is_active": env_flag("SEED_SERVER_IS_ACTIVE", True),
     }
 
@@ -127,6 +132,11 @@ async def upsert_server() -> bool:
         server.flow = server_seed["flow"]
         server.security = server_seed["security"]
         server.transport = server_seed["transport"]
+        server.panel_base_url = server_seed["panel_base_url"]
+        server.panel_username = server_seed["panel_username"]
+        server.panel_password = server_seed["panel_password"]
+        server.panel_inbound_id = server_seed["panel_inbound_id"]
+        server.panel_verify_ssl = server_seed["panel_verify_ssl"]
         server.is_active = server_seed["is_active"]
 
         await session.commit()
