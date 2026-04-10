@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     database_url: str
 
     threexui_base_url: str
+    threexui_subscription_base_url: str = ""
     threexui_username: str
     threexui_password: str
     threexui_inbound_id: int

@@ -21,6 +21,7 @@ from app.repositories.users import get_user_by_id, get_user_by_telegram_id, upda
 from app.services.discount_service import apply_discount, get_best_discount_details
 from app.services.legal_service import has_user_accepted_legal
 from app.services.order_activation import activate_paid_order, get_subscription_access_key
+from app.services.vpn_service import build_subscription_url, get_access_key_delivery_value
 from app.services.yookassa import YooKassaError, create_sbp_payment, get_payment
 
 
@@ -30,6 +31,14 @@ router = Router()
 def is_admin(user_id: int) -> bool:
     admin_ids = {int(item.strip()) for item in settings.admin_telegram_ids_raw.split(",") if item.strip()}
     return user_id in admin_ids
+
+
+def get_subscription_delivery_value(subscription, access_key) -> str:
+    public_url = build_subscription_url(
+        subscription_token=subscription.subscription_token,
+        subscription_id=subscription.id,
+    )
+    return public_url or get_access_key_delivery_value(access_key)
 
 
 async def ensure_legal_accepted_for_message(
@@ -81,7 +90,7 @@ async def my_subscription_from_email_state(
         return
 
     access_key = await get_subscription_access_key(session, subscription)
-    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
+    access_key_value = get_subscription_delivery_value(subscription, access_key)
 
     await message.answer(
         "📱 Ваша подписка\n\n"
@@ -91,6 +100,7 @@ async def my_subscription_from_email_state(
         reply_markup=main_menu_keyboard(),
     )
     await message.answer("🔑 Ваш ключ VLESS:")
+    await message.answer("Ссылка подписки:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
 
 
@@ -389,7 +399,7 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
             return
         raise
 
-    access_key_value = access_key.vless_uri or access_key.key_value
+    access_key_value = get_subscription_delivery_value(subscription, access_key)
 
     await callback.message.answer(
         "✅ Оплата подтверждена!\n\n"
@@ -397,6 +407,7 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
         f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         "🔑 Ваш ключ VLESS:"
     )
+    await callback.message.answer("Ссылка подписки:")
     await callback.message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
     await callback.message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
@@ -417,7 +428,7 @@ async def my_subscription_handler(message: Message, session: AsyncSession):
         return
 
     access_key = await get_subscription_access_key(session, subscription)
-    access_key_value = access_key.vless_uri or access_key.key_value if access_key else "Ключ не найден"
+    access_key_value = get_subscription_delivery_value(subscription, access_key)
 
     await message.answer(
         "📱 Ваша подписка\n\n"
@@ -425,6 +436,7 @@ async def my_subscription_handler(message: Message, session: AsyncSession):
         f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
         "🔑 Ваш ключ VLESS:"
     )
+    await message.answer("Ссылка подписки:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
     await message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 

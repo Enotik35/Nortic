@@ -81,12 +81,7 @@ def build_subscription_url(
 def get_access_key_delivery_value(access_key: AccessKey | None) -> str:
     if not access_key:
         return "Ключ не найден"
-
-    computed_subscription_url = None
-    if access_key.subscription_id is not None:
-        computed_subscription_url = build_subscription_url(subscription_id=access_key.subscription_id)
-
-    return access_key.subscription_url or computed_subscription_url or access_key.vless_uri or access_key.key_value
+    return access_key.subscription_url or access_key.vless_uri or access_key.key_value
 
 
 async def issue_vpn_key_for_subscription(
