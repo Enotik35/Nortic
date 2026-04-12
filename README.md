@@ -80,7 +80,8 @@ The same pattern is used for subscription links, so users can keep one public `h
 
 - Every active server can have its own 3x-ui panel settings stored in the `servers` table.
 - If a server does not have panel settings filled in, the app falls back to global `THREEXUI_*` values from `.env`.
-- The public subscription endpoint `/s/<token>` returns configs for all active servers and adds standard profile headers for clients such as Happ.
+- The public subscription endpoint `/s/<token>` returns configs for all active servers and adds 3x-ui style profile headers for clients such as Happ.
+- Use `SUBSCRIPTION_PROFILE_TITLE`, `SUBSCRIPTION_PROFILE_URL`, `SUPPORT_URL`, and `SUBSCRIPTION_ANNOUNCE` to control how the subscription card looks inside the client.
 - To seed one server with explicit panel settings, use `SEED_SERVER_PANEL_*` environment variables with `python -m app.init_data`.
 
 ### Migration To Another VPS Later

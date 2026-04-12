@@ -1,5 +1,6 @@
 import uuid as uuid_lib
 from datetime import datetime, timezone
+import re
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -18,6 +19,22 @@ from app.services.three_xui_provider import ThreeXUIProvider
 
 def generate_uuid() -> str:
     return str(uuid_lib.uuid4())
+
+
+def normalize_label_part(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", value.replace("_", " ").replace("-", " ")).strip()
+    return re.sub(r"^(nortic)\s+", "", normalized, flags=re.IGNORECASE)
+
+
+def build_access_label(*parts: str) -> str:
+    cleaned_parts: list[str] = []
+    for part in parts:
+        normalized = normalize_label_part(part)
+        if normalized:
+            cleaned_parts.append(normalized)
+    if not cleaned_parts:
+        return "Nortic"
+    return " - ".join(["Nortic", *cleaned_parts])
 
 
 def build_vless_uri(
@@ -257,7 +274,7 @@ async def ensure_access_key_on_active_servers(
     primary_server = servers[0]
     access_key.server_id = primary_server.id
     if access_key.uuid:
-        label = f"Nortic-{user.telegram_id}-{access_key.device_id}"
+        label = build_access_label("Nortic", primary_server.name)
         access_key.vless_uri = build_vless_uri(
             host=primary_server.host,
             port=primary_server.port,
@@ -309,7 +326,7 @@ async def issue_vpn_key_for_subscription(
 
     uuid = generate_uuid()
     client_email = f"tg-{user.telegram_id}-sub-{subscription.id}-dev-{device.id}"
-    label = f"Nortic-{user.telegram_id}-{device.id}"
+    label = build_access_label("Nortic", primary_server.name, device_name)
 
     for server in servers:
         await add_or_replace_client_on_server(

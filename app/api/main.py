@@ -1,5 +1,6 @@
 import base64
 from datetime import timezone
+import re
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -37,22 +38,44 @@ def encode_profile_header(value: str) -> str:
     return f"base64:{encoded}"
 
 
+def prettify_profile_title(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", value.replace("_", " ").replace("-", " ")).strip()
+    return cleaned or "Nortic"
+
+
+def build_node_label(server_name: str) -> str:
+    normalized = server_name.replace("_", " ").replace("-", " ")
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"^(nortic)\s+", "", normalized, flags=re.IGNORECASE)
+    return f"Nortic {normalized}".strip()
+
+
 async def build_subscription_headers(session: AsyncSession, subscription) -> dict[str, str]:
-    title = settings.subscription_profile_title.strip() or "Nortic"
+    title = prettify_profile_title(settings.subscription_profile_title)
     headers = {
         "cache-control": "no-store",
         "x-subscription-source": "nortic-api",
         "profile-title": encode_profile_header(title),
+        "Profile-Title": encode_profile_header(title),
         "profile-update-interval": str(settings.subscription_update_interval_hours),
+        "Profile-Update-Interval": str(settings.subscription_update_interval_hours),
         "content-disposition": 'attachment; filename="nortic-subscription.txt"',
     }
 
     if settings.support_url.strip():
         headers["support-url"] = settings.support_url.strip()
+        headers["Support-Url"] = settings.support_url.strip()
 
     profile_url = settings.subscription_profile_url.strip() or settings.instruction_url.strip()
     if profile_url:
         headers["profile-web-page-url"] = profile_url
+        headers["Profile-Web-Page-Url"] = profile_url
+
+    announce = settings.subscription_announce.strip()
+    if announce:
+        encoded_announce = encode_profile_header(announce)
+        headers["announce"] = encoded_announce
+        headers["Announce"] = encoded_announce
 
     total_bytes = 0
     if subscription.order_id:
@@ -66,9 +89,9 @@ async def build_subscription_headers(session: AsyncSession, subscription) -> dic
             total_bytes = int(traffic_limit_gb) * 1024 * 1024 * 1024
 
     expire_ts = int(subscription.end_at.replace(tzinfo=timezone.utc).timestamp())
-    headers["subscription-userinfo"] = (
-        f"upload=0; download=0; total={total_bytes}; expire={expire_ts}"
-    )
+    userinfo = f"upload=0; download=0; total={total_bytes}; expire={expire_ts}"
+    headers["subscription-userinfo"] = userinfo
+    headers["Subscription-Userinfo"] = userinfo
     return headers
 
 
@@ -107,7 +130,6 @@ async def build_subscription_payload(session: AsyncSession, subscription) -> tup
             return access_key.vless_uri.strip(), headers
         raise HTTPException(status_code=503, detail="No active VPN servers")
 
-    label_suffix = str(access_key.device_id or subscription.id)
     payload = "\n".join(
         build_vless_uri(
             host=server.host,
@@ -116,7 +138,7 @@ async def build_subscription_payload(session: AsyncSession, subscription) -> tup
             short_id=server.short_id,
             sni=server.sni,
             uuid=access_key.uuid,
-            label=f"Nortic-{server.name}-{label_suffix}",
+            label=build_node_label(server.name),
             flow=server.flow,
             security=server.security,
             transport=server.transport,
