@@ -6,6 +6,31 @@ function response(statusCode, body, headers = {}) {
   };
 }
 
+function buildForwardHeaders(upstreamHeaders) {
+  const forwarded = {};
+  const allowedHeaders = [
+    "content-type",
+    "cache-control",
+    "content-disposition",
+    "profile-title",
+    "profile-update-interval",
+    "profile-web-page-url",
+    "support-url",
+    "announce",
+    "subscription-userinfo",
+  ];
+
+  for (const headerName of allowedHeaders) {
+    const value = upstreamHeaders.get(headerName);
+    if (value) {
+      forwarded[headerName] = value;
+    }
+  }
+
+  forwarded["x-subscription-proxy"] = "netlify";
+  return forwarded;
+}
+
 exports.handler = async function handler(event) {
   const backendBaseUrl = process.env.BACKEND_BASE_URL;
   if (!backendBaseUrl) {
@@ -28,11 +53,7 @@ exports.handler = async function handler(event) {
     });
 
     const body = await upstream.text();
-    return response(upstream.status, body, {
-      "content-type": upstream.headers.get("content-type") || "text/plain; charset=utf-8",
-      "cache-control": upstream.headers.get("cache-control") || "no-store",
-      "x-subscription-proxy": "netlify",
-    });
+    return response(upstream.status, body, buildForwardHeaders(upstream.headers));
   } catch (error) {
     return response(502, error.message || "Subscription proxy failed", {
       "content-type": "text/plain; charset=utf-8",
