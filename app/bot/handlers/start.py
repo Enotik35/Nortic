@@ -499,14 +499,35 @@ async def get_user_id_handler(message: Message, session: AsyncSession):
         await message.answer("⛔ У вас нет доступа к этой команде.")
         return
 
-    if message.reply_to_message and message.reply_to_message.from_user:
-        replied_user = message.reply_to_message.from_user
-        username = f"@{replied_user.username}" if replied_user.username else "-"
-        await message.answer(
-            f"Telegram ID: {replied_user.id}\n"
-            f"Username: {username}"
-        )
-        return
+    if message.reply_to_message:
+        reply = message.reply_to_message
+        forward_origin = getattr(reply, "forward_origin", None)
+        forwarded_user = getattr(forward_origin, "sender_user", None)
+        if forwarded_user:
+            username = f"@{forwarded_user.username}" if forwarded_user.username else "-"
+            await message.answer(
+                f"Telegram ID: {forwarded_user.id}\n"
+                f"Username: {username}"
+            )
+            return
+
+        forwarded_name = getattr(forward_origin, "sender_user_name", None)
+        if forwarded_name:
+            await message.answer(
+                "У этого пересланного сообщения Telegram скрыл профиль отправителя.\n"
+                f"Виден только отправитель: {forwarded_name}\n"
+                "Telegram ID из такого forward получить нельзя."
+            )
+            return
+
+        if reply.from_user:
+            replied_user = reply.from_user
+            username = f"@{replied_user.username}" if replied_user.username else "-"
+            await message.answer(
+                f"Telegram ID: {replied_user.id}\n"
+                f"Username: {username}"
+            )
+            return
 
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
