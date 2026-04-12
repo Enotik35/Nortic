@@ -15,19 +15,25 @@ from app.repositories.referrals import (
     get_referral_by_referred_user_id,
 )
 from app.repositories.subscriptions import get_active_subscription
-from app.repositories.tariffs import get_active_tariffs, get_active_trial_tariff
+from app.repositories.tariffs import get_active_tariffs, get_active_trial_tariff, get_all_tariffs
 from app.repositories.users import (
     create_user_if_not_exists,
     ensure_user_ref_code,
     get_user_by_ref_code,
     get_user_by_telegram_id,
+    get_user_by_telegram_username,
     mark_trial_used,
     set_referred_by_user,
 )
 from app.services.legal_service import has_user_accepted_legal
 from app.services.discount_service import get_referral_discount_percent
+from app.services.manual_grant import grant_subscription_manually
 from app.services.subscription_service import create_or_extend_subscription
-from app.services.vpn_service import issue_vpn_key_for_subscription
+from app.services.vpn_service import (
+    build_subscription_url,
+    get_access_key_delivery_value,
+    issue_vpn_key_for_subscription,
+)
 
 
 router = Router()
@@ -380,3 +386,153 @@ async def activate_trial_handler(message: Message, state: FSMContext, session: A
         return
 
     await activate_trial_subscription(message, session, user)
+
+
+@router.message(F.text.startswith("/grant_subscription"))
+async def grant_subscription_handler(message: Message, session: AsyncSession):
+    if not is_admin_telegram_id(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этой команде.")
+        return
+
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer("Использование: /grant_subscription <telegram_id> <tariff_id>")
+        return
+
+    try:
+        target_telegram_id = int(parts[1])
+        tariff_id = int(parts[2])
+    except ValueError:
+        await message.answer("telegram_id и tariff_id должны быть числами.")
+        return
+
+    try:
+        user, tariff, order, subscription, access_key = await grant_subscription_manually(
+            session=session,
+            user_telegram_id=target_telegram_id,
+            tariff_id=tariff_id,
+        )
+    except ValueError as exc:
+        await session.rollback()
+        error_code = str(exc)
+        if error_code == "USER_NOT_FOUND":
+            await message.answer("Пользователь с таким telegram_id не найден.")
+            return
+        if error_code == "TARIFF_NOT_FOUND":
+            await message.answer("Тариф не найден.")
+            return
+        if error_code == "TARIFF_INACTIVE":
+            await message.answer("Тариф неактивен, ручная выдача отменена.")
+            return
+        if error_code == "TRIAL_TARIFF_NOT_ALLOWED":
+            await message.answer("Пробный тариф через эту команду выдавать нельзя.")
+            return
+        if error_code == "NO_ACTIVE_SERVER":
+            await message.answer("⚠️ Сейчас нет активного VPN-сервера. Сначала добавьте сервер в базу.")
+            return
+        if error_code == "DEVICE_LIMIT_REACHED":
+            await message.answer("⚠️ Лимит устройств для этой подписки уже достигнут.")
+            return
+        raise
+
+    subscription_url = build_subscription_url(
+        subscription_token=subscription.subscription_token,
+        subscription_id=subscription.id,
+    ) or get_access_key_delivery_value(access_key)
+
+    await message.answer(
+        "✅ Подписка выдана вручную.\n\n"
+        f"Telegram ID: {user.telegram_id}\n"
+        f"Тариф: {tariff.name}\n"
+        f"Заказ: #{order.id}\n"
+        f"Подписка: #{subscription.subscription_number}\n"
+        f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        "Ссылка на подписку:"
+    )
+    await message.answer(f"<code>{subscription_url}</code>", parse_mode="HTML")
+
+    try:
+        await message.bot.send_message(
+            chat_id=user.telegram_id,
+            text=(
+                "✅ Подписка активирована вручную после проверки оплаты.\n\n"
+                f"Тариф: {tariff.name}\n"
+                f"Действует до: {subscription.end_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+                "Ваша ссылка на подписку:\n"
+                f"<code>{subscription_url}</code>"
+            ),
+            parse_mode="HTML",
+        )
+    except Exception:
+        await message.answer(
+            "ℹ️ Подписка выдана, но автоматически отправить ссылку клиенту не удалось. Можно переслать ее вручную."
+        )
+
+
+@router.message(F.text.startswith("/list_tariffs"))
+async def list_tariffs_handler(message: Message, session: AsyncSession):
+    if not is_admin_telegram_id(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этой команде.")
+        return
+
+    tariffs = await get_all_tariffs(session)
+    if not tariffs:
+        await message.answer("Тарифы пока не найдены.")
+        return
+
+    lines = ["Тарифы:"]
+    for tariff in tariffs:
+        status = "active" if tariff.is_active else "inactive"
+        trial = " trial" if tariff.is_trial else ""
+        traffic = f", {tariff.traffic_limit_gb} GB" if tariff.traffic_limit_gb is not None else ""
+        lines.append(
+            f"ID {tariff.id}: {tariff.name} | {tariff.price_rub} RUB | {tariff.duration_days} дн. | "
+            f"devices {tariff.device_limit}{traffic} | {status}{trial}"
+        )
+
+    await message.answer("\n".join(lines))
+
+
+@router.message(F.text.startswith("/get_user_id"))
+async def get_user_id_handler(message: Message, session: AsyncSession):
+    if not is_admin_telegram_id(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этой команде.")
+        return
+
+    if message.reply_to_message and message.reply_to_message.from_user:
+        replied_user = message.reply_to_message.from_user
+        username = f"@{replied_user.username}" if replied_user.username else "-"
+        await message.answer(
+            f"Telegram ID: {replied_user.id}\n"
+            f"Username: {username}"
+        )
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer(
+            "Использование: /get_user_id <@username>\n"
+            "Или ответьте этой командой на сообщение пользователя."
+        )
+        return
+
+    username = parts[1].strip()
+    user = await get_user_by_telegram_username(session, username)
+    if not user:
+        await message.answer("Пользователь с таким username не найден в базе бота.")
+        return
+
+    username_text = f"@{user.telegram_username}" if user.telegram_username else "-"
+    await message.answer(
+        f"Telegram ID: {user.telegram_id}\n"
+        f"Username: {username_text}"
+    )
+
+
+@router.message(F.text.startswith("/my_id"))
+async def my_id_handler(message: Message):
+    username = f"@{message.from_user.username}" if message.from_user.username else "-"
+    await message.answer(
+        f"Ваш Telegram ID: {message.from_user.id}\n"
+        f"Username: {username}"
+    )

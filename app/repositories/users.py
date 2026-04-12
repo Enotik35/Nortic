@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 
@@ -18,6 +18,17 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
 
 async def get_user_by_ref_code(session: AsyncSession, ref_code: str) -> User | None:
     result = await session.execute(select(User).where(User.ref_code == ref_code))
+    return result.scalar_one_or_none()
+
+
+async def get_user_by_telegram_username(session: AsyncSession, telegram_username: str) -> User | None:
+    normalized = telegram_username.strip().lstrip("@").lower()
+    if not normalized:
+        return None
+
+    result = await session.execute(
+        select(User).where(func.lower(User.telegram_username) == normalized)
+    )
     return result.scalar_one_or_none()
 
 

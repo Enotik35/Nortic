@@ -3,6 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.tariff import Tariff
 
 
+async def get_all_tariffs(session: AsyncSession) -> list[Tariff]:
+    result = await session.execute(
+        select(Tariff).order_by(Tariff.is_trial.desc(), Tariff.price_rub.asc(), Tariff.id.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_active_tariffs(session: AsyncSession) -> list[Tariff]:
     result = await session.execute(
         select(Tariff)
