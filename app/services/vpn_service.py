@@ -101,6 +101,15 @@ def get_access_key_delivery_value(access_key: AccessKey | None) -> str:
     return access_key.subscription_url or access_key.vless_uri or access_key.key_value
 
 
+def build_access_key_value(
+    *,
+    subscription_url: str | None,
+    uuid: str | None,
+    vless_uri: str,
+) -> str:
+    return subscription_url or uuid or vless_uri
+
+
 def build_provider_for_server(server: Server) -> tuple[ThreeXUIProvider, int]:
     base_url = (server.panel_base_url or settings.threexui_base_url).strip()
     username = (server.panel_username or settings.threexui_username).strip()
@@ -287,11 +296,14 @@ async def ensure_access_key_on_active_servers(
             security=primary_server.security,
             transport=primary_server.transport,
         )
-        access_key.key_value = access_key.vless_uri
-
     access_key.subscription_url = build_subscription_url(
         subscription_token=subscription.subscription_token,
         subscription_id=subscription.id,
+    )
+    access_key.key_value = build_access_key_value(
+        subscription_url=access_key.subscription_url,
+        uuid=access_key.uuid,
+        vless_uri=access_key.vless_uri or access_key.key_value,
     )
     access_key.expires_at = subscription.end_at
     return servers
@@ -357,9 +369,15 @@ async def issue_vpn_key_for_subscription(
         subscription_id=subscription.id,
     )
 
+    key_value = build_access_key_value(
+        subscription_url=subscription_url,
+        uuid=uuid,
+        vless_uri=vless_uri,
+    )
+
     access_key = await create_access_key(
         session=session,
-        key_value=vless_uri,
+        key_value=key_value,
         user_id=user.id,
         subscription_id=subscription.id,
         device_id=device.id,
