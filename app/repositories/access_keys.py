@@ -17,6 +17,7 @@ async def create_access_key(
     uuid: str,
     external_client_id: str | None,
     vless_uri: str,
+    subscription_url: str | None = None,
     expires_at: datetime | None = None,
 ) -> AccessKey:
     access_key = AccessKey(
@@ -31,6 +32,7 @@ async def create_access_key(
         uuid=uuid,
         external_client_id=external_client_id,
         vless_uri=vless_uri,
+        subscription_url=subscription_url,
         is_active=True,
         is_revoked=False,
         expires_at=expires_at,
