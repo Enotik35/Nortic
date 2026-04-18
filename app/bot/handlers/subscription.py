@@ -41,6 +41,14 @@ def get_subscription_delivery_value(subscription, access_key) -> str:
     return public_url or get_access_key_delivery_value(access_key)
 
 
+def get_happ_routing_message() -> str | None:
+    routing_rule_url = settings.happ_routing_rule_url.strip()
+    if not routing_rule_url:
+        return None
+
+    return "Правило маршрутизации Happ:\n" f"<code>{routing_rule_url}</code>"
+
+
 async def ensure_legal_accepted_for_message(
     message: Message,
     session: AsyncSession,
@@ -102,6 +110,9 @@ async def my_subscription_from_email_state(
     await message.answer("🔑 Ваш ключ VLESS:")
     await message.answer("Ссылка подписки:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
+    happ_routing_message = get_happ_routing_message()
+    if happ_routing_message:
+        await message.answer(happ_routing_message, parse_mode="HTML")
 
 
 @router.message(BuySubscriptionState.waiting_for_email)
@@ -409,6 +420,9 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
     )
     await callback.message.answer("Ссылка подписки:")
     await callback.message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
+    happ_routing_message = get_happ_routing_message()
+    if happ_routing_message:
+        await callback.message.answer(happ_routing_message, parse_mode="HTML")
     await callback.message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
 
@@ -438,6 +452,9 @@ async def my_subscription_handler(message: Message, session: AsyncSession):
     )
     await message.answer("Ссылка подписки:")
     await message.answer(f"<code>{access_key_value}</code>", parse_mode="HTML")
+    happ_routing_message = get_happ_routing_message()
+    if happ_routing_message:
+        await message.answer(happ_routing_message, parse_mode="HTML")
     await message.answer("📲 Скопируйте ключ и импортируйте его в Happ.")
 
 
