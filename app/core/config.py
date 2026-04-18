@@ -31,8 +31,6 @@ class Settings(BaseSettings):
     subscription_profile_url: str = ""
     subscription_announce: str = ""
     happ_routing_rule_url: str = ""
-    happ_routing_rule_text: str = "Добавьте правило маршрутизации для Happ"
-    happ_routing_rule_button_text: str = "Маршрутизация"
 
     model_config = SettingsConfigDict(
         env_file=".env",

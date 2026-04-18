@@ -50,18 +50,11 @@ def build_node_label(server_name: str) -> str:
     return f"Nortic {normalized}".strip()
 
 
-def build_happ_routing_meta_lines() -> list[str]:
+def build_happ_routing_rule_line() -> str | None:
     routing_rule_url = settings.happ_routing_rule_url.strip()
     if not routing_rule_url:
-        return []
-
-    info_text = settings.happ_routing_rule_text.strip() or "Добавьте правило маршрутизации для Happ"
-    button_text = settings.happ_routing_rule_button_text.strip() or "Маршрутизация"
-    return [
-        f"#sub-info-text: {info_text}",
-        f"#sub-info-button-text: {button_text}",
-        f"#sub-info-button-link: {routing_rule_url}",
-    ]
+        return None
+    return routing_rule_url
 
 
 async def build_subscription_headers(session: AsyncSession, subscription) -> dict[str, str]:
@@ -144,8 +137,7 @@ async def build_subscription_payload(session: AsyncSession, subscription) -> tup
             return access_key.vless_uri.strip(), headers
         raise HTTPException(status_code=503, detail="No active VPN servers")
 
-    payload_lines = build_happ_routing_meta_lines()
-    payload_lines.extend(
+    payload_lines = [
         build_vless_uri(
             host=server.host,
             port=server.port,
@@ -159,7 +151,10 @@ async def build_subscription_payload(session: AsyncSession, subscription) -> tup
             transport=server.transport,
         )
         for server in servers
-    )
+    ]
+    routing_rule_line = build_happ_routing_rule_line()
+    if routing_rule_line:
+        payload_lines.append(routing_rule_line)
     payload = "\n".join(payload_lines)
     headers = await build_subscription_headers(session, subscription)
     return payload, headers
