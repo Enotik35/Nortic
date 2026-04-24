@@ -1,5 +1,6 @@
 from aiogram import Bot
 
+from app.bot.keyboards.common import receipt_task_keyboard
 from app.core.config import get_admin_receipts_chat_id, get_admin_telegram_ids, settings
 from app.repositories.receipt_tasks import (
     create_receipt_task,
@@ -76,3 +77,30 @@ async def notify_admins_about_receipt_task(session, *, task, text: str, reply_ma
                 )
     finally:
         await bot.session.close()
+
+
+async def ensure_receipt_task_for_paid_order(
+    session,
+    *,
+    order,
+    user,
+    tariff,
+):
+    task, created = await create_receipt_task_for_order(
+        session,
+        order=order,
+        user=user,
+        description=f"VPN subscription: {tariff.name}",
+    )
+    if created:
+        await notify_admins_about_receipt_task(
+            session,
+            task=task,
+            text=build_receipt_task_text(
+                task=task,
+                user_telegram_id=user.telegram_id,
+                username=user.telegram_username,
+            ),
+            reply_markup=receipt_task_keyboard(task.id),
+        )
+    return task, created

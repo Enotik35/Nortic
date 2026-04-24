@@ -13,7 +13,6 @@ from app.init_data import upsert_server, upsert_tariffs
 from app.models.order import Order
 from app.models.tariff import Tariff
 from app.models.user import User
-from app.bot.keyboards.common import receipt_task_keyboard
 from app.repositories.access_keys import get_latest_access_key_by_subscription
 from app.repositories.tariffs import get_tariff_by_id
 from app.repositories.users import get_user_by_id
@@ -24,9 +23,7 @@ from app.repositories.subscriptions import (
 )
 from app.services.payment_activation import activate_order_from_payment
 from app.services.receipt_tasks import (
-    build_receipt_task_text,
-    create_receipt_task_for_order,
-    notify_admins_about_receipt_task,
+    ensure_receipt_task_for_paid_order,
 )
 from app.services.vpn_service import (
     build_vless_uri,
@@ -233,24 +230,13 @@ async def yookassa_webhook(payload: dict, session: AsyncSession = Depends(get_db
     user = await get_user_by_id(session, order.user_id)
     tariff = await get_tariff_by_id(session, order.tariff_id)
     if user and tariff:
-        task, created = await create_receipt_task_for_order(
+        await ensure_receipt_task_for_paid_order(
             session,
             order=order,
             user=user,
-            description=f"VPN subscription: {tariff.name}",
+            tariff=tariff,
         )
-        if created:
-            await notify_admins_about_receipt_task(
-                session,
-                task=task,
-                text=build_receipt_task_text(
-                    task=task,
-                    user_telegram_id=user.telegram_id,
-                    username=user.telegram_username,
-                ),
-                reply_markup=receipt_task_keyboard(task.id),
-            )
-            await session.commit()
+        await session.commit()
 
     return {"ok": True}
 

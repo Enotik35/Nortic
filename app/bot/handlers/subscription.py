@@ -15,7 +15,12 @@ from app.bot.keyboards.common import (
 )
 from app.bot.states import BuySubscriptionState, ChangeEmailState, TrialSubscriptionState
 from app.core.config import get_admin_telegram_ids, is_yookassa_configured, settings
-from app.repositories.orders import create_order, get_order_by_id, update_order_payment
+from app.repositories.orders import (
+    create_order,
+    get_order_by_id,
+    list_paid_orders_missing_receipt_tasks,
+    update_order_payment,
+)
 from app.repositories.receipt_tasks import get_receipt_task_by_id, list_pending_receipt_tasks, mark_receipt_task_sent
 from app.repositories.subscriptions import get_active_subscription
 from app.repositories.tariffs import get_active_tariffs, get_tariff_by_id
@@ -23,6 +28,7 @@ from app.repositories.users import get_user_by_id, get_user_by_telegram_id, upda
 from app.services.discount_service import apply_discount, get_best_discount_details
 from app.services.legal_service import has_user_accepted_legal
 from app.services.order_activation import activate_paid_order, get_subscription_access_key
+from app.services.receipt_tasks import ensure_receipt_task_for_paid_order
 from app.services.vpn_service import build_subscription_url, get_access_key_delivery_value
 from app.services.yookassa import YooKassaError, create_sbp_payment, get_payment
 
@@ -98,6 +104,35 @@ async def receipts_list_handler(message: Message, session: AsyncSession):
             format_receipt_task_summary(task),
             reply_markup=receipt_task_keyboard(task.id),
         )
+
+
+@router.message(F.text == "/receipts_sync")
+async def receipts_sync_handler(message: Message, session: AsyncSession):
+    if not is_admin(message.from_user.id):
+        return
+
+    orders = await list_paid_orders_missing_receipt_tasks(session, limit=20)
+    if not orders:
+        await message.answer("Оплаченных заказов без чековых задач не найдено.")
+        return
+
+    created_count = 0
+    for order in orders:
+        user = await get_user_by_id(session, order.user_id)
+        tariff = await get_tariff_by_id(session, order.tariff_id)
+        if not user or not tariff:
+            continue
+
+        _, created = await ensure_receipt_task_for_paid_order(
+            session,
+            order=order,
+            user=user,
+            tariff=tariff,
+        )
+        if created:
+            created_count += 1
+
+    await message.answer(f"Восстановил задач на чек: {created_count}")
 
 
 @router.callback_query(F.data.startswith("receipt_done:"))
@@ -456,6 +491,15 @@ async def paid_handler(callback: CallbackQuery, session: AsyncSession):
             await callback.message.answer("⚠️ Лимит устройств для этой подписки уже достигнут.")
             return
         raise
+
+    tariff = await get_tariff_by_id(session, order.tariff_id)
+    if tariff:
+        await ensure_receipt_task_for_paid_order(
+            session,
+            order=order,
+            user=order_user,
+            tariff=tariff,
+        )
 
     access_key_value = get_subscription_delivery_value(subscription, access_key)
 

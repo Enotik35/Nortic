@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Optional
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
+from app.models.receipt_task import ReceiptTask
 
 
 async def create_order(
@@ -68,3 +70,21 @@ async def update_order_payment(
     await session.flush()
     await session.refresh(order)
     return order
+
+
+async def list_paid_orders_missing_receipt_tasks(
+    session: AsyncSession,
+    *,
+    limit: int = 50,
+) -> list[Order]:
+    result = await session.execute(
+        select(Order)
+        .outerjoin(ReceiptTask, ReceiptTask.order_id == Order.id)
+        .where(
+            Order.status == "paid",
+            ReceiptTask.id.is_(None),
+        )
+        .order_by(Order.paid_at.desc(), Order.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
