@@ -40,6 +40,20 @@ from app.services.vpn_service import (
 router = Router()
 
 
+def build_admin_help_text() -> str:
+    return (
+        "🛠 Админ-команды Nortic\n\n"
+        "/help - показать этот список\n"
+        "/my_id - показать ваш Telegram ID\n"
+        "/get_user_id <@username> - найти Telegram ID пользователя из базы\n"
+        "/list_tariffs - показать все тарифы\n"
+        "/grant_subscription <telegram_id> <tariff_id> - выдать подписку вручную\n"
+        "/grant_friend_discount <telegram_id> <percent> <usages> [comment] - создать скидку другу\n"
+        "/reset_user <telegram_id> - удалить пользователя и его данные для повторного теста trial\n\n"
+        "Подсказка: /get_user_id можно использовать ответом на сообщение пользователя."
+    )
+
+
 def build_main_menu_for_user(user, active_subscription):
     return main_menu_keyboard(
         has_active_subscription=bool(active_subscription),
@@ -190,6 +204,15 @@ async def start_handler(message: Message, state: FSMContext, session: AsyncSessi
                 )
 
     await show_main_menu(message, state, session)
+
+
+@router.message(F.text == "/help")
+async def help_handler(message: Message):
+    if not is_admin_telegram_id(message.from_user.id):
+        await message.answer("Команда /help доступна только администратору.")
+        return
+
+    await message.answer(build_admin_help_text())
 
 
 @router.message(F.text.startswith("/grant_friend_discount"))
