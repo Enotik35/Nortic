@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     threexui_inbound_id: int
 
     admin_telegram_ids_raw: str = ""
+    admin_receipts_chat_id: str = ""
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     threexui_verify_ssl: bool = True
@@ -20,6 +21,10 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = ""
     yookassa_secret_key: str = ""
     yookassa_return_url: str = ""
+    yookassa_receipts_enabled: bool = False
+    yookassa_receipt_vat_code: int = 1
+    yookassa_receipt_payment_subject: str = "service"
+    yookassa_receipt_payment_mode: str = "full_payment"
     internal_api_token: str = ""
     instruction_url: str = "https://t.me/Norticboost/3"
     support_url: str = "https://t.me/nortic_team"
@@ -50,6 +55,10 @@ def is_yookassa_configured() -> bool:
     )
 
 
+def is_yookassa_receipts_enabled() -> bool:
+    return is_yookassa_configured() and settings.yookassa_receipts_enabled
+
+
 def is_internal_api_token_configured() -> bool:
     return bool(settings.internal_api_token.strip())
 
@@ -62,3 +71,14 @@ def parse_admin_telegram_ids(raw_value: str) -> set[int]:
             continue
         result.add(int(chunk))
     return result
+
+
+def get_admin_telegram_ids() -> set[int]:
+    return parse_admin_telegram_ids(settings.admin_telegram_ids_raw)
+
+
+def get_admin_receipts_chat_id() -> int | None:
+    raw_value = settings.admin_receipts_chat_id.strip()
+    if not raw_value:
+        return None
+    return int(raw_value)

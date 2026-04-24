@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import httpx
 
-from app.core.config import is_yookassa_configured, settings
+from app.core.config import is_yookassa_configured, is_yookassa_receipts_enabled, settings
 
 
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
@@ -83,7 +83,64 @@ async def create_payment(*, order_id: int, amount_rub: int, description: str) ->
     return _parse_payment(response)
 
 
-async def create_sbp_payment(*, order_id: int, amount_rub: int, description: str) -> YooKassaPayment:
+def _build_receipt(*, amount_rub: int, email: str, item_description: str) -> dict[str, Any]:
+    return {
+        "customer": {
+            "email": email,
+        },
+        "items": [
+            {
+                "description": item_description,
+                "quantity": "1.00",
+                "amount": {
+                    "value": amount_to_rub_value(amount_rub),
+                    "currency": "RUB",
+                },
+                "vat_code": settings.yookassa_receipt_vat_code,
+                "payment_mode": settings.yookassa_receipt_payment_mode,
+                "payment_subject": settings.yookassa_receipt_payment_subject,
+            }
+        ],
+    }
+
+
+async def create_sbp_payment(
+    *,
+    order_id: int,
+    amount_rub: int,
+    description: str,
+    receipt_email: str | None = None,
+    receipt_item_description: str | None = None,
+) -> YooKassaPayment:
+    if is_yookassa_receipts_enabled():
+        if not receipt_email:
+            raise YooKassaError("Receipt email is required when YooKassa receipts are enabled")
+        if not receipt_item_description:
+            raise YooKassaError("Receipt item description is required when YooKassa receipts are enabled")
+
+        payload = {
+            "amount": {
+                "value": amount_to_rub_value(amount_rub),
+                "currency": "RUB",
+            },
+            "capture": True,
+            "confirmation": {
+                "type": "redirect",
+                "return_url": settings.yookassa_return_url,
+            },
+            "description": description,
+            "metadata": {
+                "order_id": str(order_id),
+            },
+            "receipt": _build_receipt(
+                amount_rub=amount_rub,
+                email=receipt_email,
+                item_description=receipt_item_description,
+            ),
+        }
+        response = await _request("POST", "/payments", body=payload)
+        return _parse_payment(response)
+
     return await create_payment(
         order_id=order_id,
         amount_rub=amount_rub,

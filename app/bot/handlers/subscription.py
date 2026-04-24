@@ -10,11 +10,13 @@ from app.bot.keyboards.common import (
     cancel_keyboard,
     main_menu_keyboard,
     payment_methods_keyboard,
+    receipt_task_keyboard,
     tariffs_keyboard,
 )
 from app.bot.states import BuySubscriptionState, ChangeEmailState, TrialSubscriptionState
-from app.core.config import is_yookassa_configured, settings
+from app.core.config import get_admin_telegram_ids, is_yookassa_configured, settings
 from app.repositories.orders import create_order, get_order_by_id, update_order_payment
+from app.repositories.receipt_tasks import get_receipt_task_by_id, list_pending_receipt_tasks, mark_receipt_task_sent
 from app.repositories.subscriptions import get_active_subscription
 from app.repositories.tariffs import get_active_tariffs, get_tariff_by_id
 from app.repositories.users import get_user_by_id, get_user_by_telegram_id, update_user_email
@@ -29,8 +31,21 @@ router = Router()
 
 
 def is_admin(user_id: int) -> bool:
-    admin_ids = {int(item.strip()) for item in settings.admin_telegram_ids_raw.split(",") if item.strip()}
-    return user_id in admin_ids
+    return user_id in get_admin_telegram_ids()
+
+
+def format_receipt_task_summary(task) -> str:
+    email_text = task.email or "не указан"
+    payment_text = task.payment_id or "не указан"
+    return (
+        f"Чек #{task.id}\n"
+        f"Заказ: #{task.order_id}\n"
+        f"Платеж: {payment_text}\n"
+        f"Сумма: {task.amount_rub} RUB\n"
+        f"Email: {email_text}\n"
+        f"Услуга: {task.description}\n"
+        f"Статус: {task.status}"
+    )
 
 
 def get_subscription_delivery_value(subscription, access_key) -> str:
@@ -65,6 +80,47 @@ async def ensure_legal_accepted_for_callback(callback: CallbackQuery, session: A
     await callback.answer("Сначала примите условия сервиса", show_alert=True)
     await send_legal_consent_prompt(callback.message)
     return False
+
+
+@router.message(F.text == "/receipts")
+async def receipts_list_handler(message: Message, session: AsyncSession):
+    if not is_admin(message.from_user.id):
+        return
+
+    tasks = await list_pending_receipt_tasks(session, limit=10)
+    if not tasks:
+        await message.answer("Сейчас нет необработанных чеков.")
+        return
+
+    await message.answer(f"Необработанных чеков: {len(tasks)}")
+    for task in tasks:
+        await message.answer(
+            format_receipt_task_summary(task),
+            reply_markup=receipt_task_keyboard(task.id),
+        )
+
+
+@router.callback_query(F.data.startswith("receipt_done:"))
+async def receipt_done_handler(callback: CallbackQuery, session: AsyncSession):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Недостаточно прав", show_alert=True)
+        return
+
+    task_id = int(callback.data.split(":")[1])
+    task = await get_receipt_task_by_id(session, task_id)
+    if not task:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    if task.status == "sent":
+        await callback.answer("Чек уже отмечен")
+        return
+
+    await mark_receipt_task_sent(session, task)
+    await callback.answer("Отметил чек как отправленный")
+    await callback.message.edit_text(
+        f"{format_receipt_task_summary(task)}\n\nОтмечено как отправленное.",
+    )
 
 
 @router.message(BuySubscriptionState.waiting_for_email, F.text == "📱 Моя подписка")
@@ -271,6 +327,8 @@ async def tariff_selected_handler(callback: CallbackQuery, session: AsyncSession
                 order_id=order.id,
                 amount_rub=final_price_rub,
                 description=f"{tariff.name} | order #{order.id}",
+                receipt_email=user.email,
+                receipt_item_description=f"VPN subscription: {tariff.name}",
             )
         except YooKassaError:
             await session.rollback()

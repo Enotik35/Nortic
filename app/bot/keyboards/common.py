@@ -72,3 +72,11 @@ def payment_methods_keyboard(order_id: int, payment_url: str | None = None) -> I
     )
 
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+
+def receipt_task_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Чек отправлен", callback_data=f"receipt_done:{task_id}")]
+        ]
+    )

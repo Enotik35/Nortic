@@ -7,5 +7,6 @@ from app.models.device import Device
 from app.models.server import Server
 from app.models.referral import Referral
 from app.models.friend_discount import FriendDiscount
+from app.models.receipt_task import ReceiptTask
 
-__all__ = ["User", "Tariff", "Order", "AccessKey", "Subscription", "Device", "Server", "Referral", "FriendDiscount"]
+__all__ = ["User", "Tariff", "Order", "AccessKey", "Subscription", "Device", "Server", "Referral", "FriendDiscount", "ReceiptTask"]
