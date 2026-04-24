@@ -27,6 +27,7 @@ from app.repositories.users import (
 )
 from app.services.legal_service import has_user_accepted_legal
 from app.services.discount_service import get_referral_discount_percent
+from app.services.admin_reset import reset_user_for_trial
 from app.services.manual_grant import grant_subscription_manually
 from app.services.subscription_service import create_or_extend_subscription
 from app.services.vpn_service import (
@@ -467,6 +468,49 @@ async def grant_subscription_handler(message: Message, session: AsyncSession):
         await message.answer(
             "ℹ️ Подписка выдана, но автоматически отправить ссылку клиенту не удалось. Можно переслать ее вручную."
         )
+
+
+@router.message(F.text.startswith("/reset_user"))
+async def reset_user_handler(message: Message, session: AsyncSession):
+    if not is_admin_telegram_id(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этой команде.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Использование: /reset_user <telegram_id>")
+        return
+
+    try:
+        target_telegram_id = int(parts[1].strip())
+    except ValueError:
+        await message.answer("telegram_id должен быть числом.")
+        return
+
+    try:
+        result = await reset_user_for_trial(session, target_telegram_id)
+    except ValueError as exc:
+        await session.rollback()
+        if str(exc) == "USER_NOT_FOUND":
+            await message.answer("Пользователь с таким telegram_id не найден.")
+            return
+        raise
+    except Exception:
+        await session.rollback()
+        raise
+
+    await message.answer(
+        "✅ Пользователь удалён из базы для повторного теста.\n\n"
+        f"Telegram ID: {result.telegram_id}\n"
+        f"User ID: {result.user_id}\n"
+        f"Удалено подписок: {result.deleted_subscriptions}\n"
+        f"Удалено заказов: {result.deleted_orders}\n"
+        f"Удалено устройств: {result.deleted_devices}\n"
+        f"Удалено ключей: {result.deleted_access_keys}\n"
+        f"Удалено referral-записей: {result.deleted_referrals}\n"
+        f"Удалено клиентов из 3x-ui: {result.removed_remote_clients}\n\n"
+        "Теперь можно заново зайти этим аккаунтом и проверить выдачу пробного периода."
+    )
 
 
 @router.message(F.text.startswith("/list_tariffs"))
