@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import is_internal_api_token_configured, settings
 from app.core.db import get_db
+from app.init_data import upsert_server, upsert_tariffs
 from app.models.order import Order
 from app.models.tariff import Tariff
 from app.models.user import User
@@ -26,6 +27,12 @@ from app.services.vpn_service import (
 from app.services.yookassa import YooKassaError
 
 app = FastAPI(title="Subscription Bot API")
+
+
+@app.on_event("startup")
+async def sync_seed_data_on_startup() -> None:
+    await upsert_tariffs()
+    await upsert_server()
 
 
 @app.get("/health")

@@ -10,6 +10,7 @@ from app.bot.handlers.start import router as start_router
 from app.bot.handlers.subscription import router as subscription_router
 from app.core.config import settings
 from app.core.db import AsyncSessionLocal, engine
+from app.init_data import upsert_server, upsert_tariffs
 from app.core.runtime_lock import PostgresAdvisoryLock
 
 
@@ -40,6 +41,19 @@ async def start_bot():
     if not lock_acquired:
         logger.warning("Skipping bot polling because another instance is already running")
         return
+
+    try:
+        tariffs_count = await upsert_tariffs()
+        logger.info("Tariffs synced on bot startup: %s", tariffs_count)
+    except Exception:
+        logger.exception("Failed to sync tariffs on bot startup")
+
+    try:
+        server_seeded = await upsert_server()
+        if server_seeded:
+            logger.info("Server synced from environment on bot startup")
+    except Exception:
+        logger.exception("Failed to sync server seed on bot startup")
 
     bot = Bot(token=settings.bot_token)
     storage = MemoryStorage()
