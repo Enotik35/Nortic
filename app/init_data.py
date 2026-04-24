@@ -62,14 +62,15 @@ async def upsert_tariffs() -> int:
 
     async with AsyncSessionLocal() as session:
         for seed in DEFAULT_TARIFFS:
-            lookup_query = select(Tariff)
+            lookup_query = select(Tariff).order_by(Tariff.id.asc())
             if seed.is_trial:
                 lookup_query = lookup_query.where(Tariff.is_trial.is_(True))
             else:
                 lookup_query = lookup_query.where(Tariff.name == seed.name)
 
             result = await session.execute(lookup_query)
-            tariff = result.scalar_one_or_none()
+            matched_tariffs = list(result.scalars().all())
+            tariff = matched_tariffs[0] if matched_tariffs else None
 
             if tariff is None:
                 tariff = Tariff(name=seed.name)
@@ -82,6 +83,10 @@ async def upsert_tariffs() -> int:
             tariff.is_trial = seed.is_trial
             tariff.is_active = seed.is_active
             updated_count += 1
+
+            if seed.is_trial and len(matched_tariffs) > 1:
+                for duplicate_tariff in matched_tariffs[1:]:
+                    duplicate_tariff.is_active = False
 
         await session.commit()
 

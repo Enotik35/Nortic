@@ -28,9 +28,11 @@ async def get_tariff_by_id(session: AsyncSession, tariff_id: int) -> Tariff | No
 
 async def get_active_trial_tariff(session: AsyncSession) -> Tariff | None:
     result = await session.execute(
-        select(Tariff).where(
+        select(Tariff)
+        .where(
             Tariff.is_active.is_(True),
             Tariff.is_trial.is_(True),
         )
+        .order_by(Tariff.id.asc())
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
