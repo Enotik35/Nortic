@@ -17,7 +17,7 @@ def main_menu_keyboard(
     ]
 
     if show_trial:
-        keyboard.append([KeyboardButton(text="🎁 Пробный период 7 дней")])
+        keyboard.append([KeyboardButton(text="🎁 Пробный период 3 дня")])
 
     keyboard.extend(
         [

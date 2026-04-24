@@ -26,8 +26,8 @@ class TariffSeed:
 
 DEFAULT_TARIFFS = [
     TariffSeed(
-        name="Пробный период 7 дней",
-        duration_days=7,
+        name="Пробный период 3 дня",
+        duration_days=3,
         price_rub=0,
         device_limit=1,
         traffic_limit_gb=30,
@@ -62,7 +62,13 @@ async def upsert_tariffs() -> int:
 
     async with AsyncSessionLocal() as session:
         for seed in DEFAULT_TARIFFS:
-            result = await session.execute(select(Tariff).where(Tariff.name == seed.name))
+            lookup_query = select(Tariff)
+            if seed.is_trial:
+                lookup_query = lookup_query.where(Tariff.is_trial.is_(True))
+            else:
+                lookup_query = lookup_query.where(Tariff.name == seed.name)
+
+            result = await session.execute(lookup_query)
             tariff = result.scalar_one_or_none()
 
             if tariff is None:

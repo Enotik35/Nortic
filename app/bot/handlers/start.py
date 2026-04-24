@@ -346,7 +346,7 @@ async def referral_program_handler(message: Message, session: AsyncSession):
     )
 
 
-@router.message(F.text == "🎁 Пробный период 7 дней")
+@router.message(F.text == "🎁 Пробный период 3 дня")
 async def activate_trial_handler(message: Message, state: FSMContext, session: AsyncSession):
     await state.clear()
 
