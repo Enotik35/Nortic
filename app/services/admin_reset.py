@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.access_key import AccessKey
 from app.models.device import Device
 from app.models.order import Order
+from app.models.receipt_task import ReceiptTask
 from app.models.referral import Referral
 from app.models.subscription import Subscription
 from app.models.user import User
@@ -23,6 +24,7 @@ class ResetUserResult:
     deleted_devices: int
     deleted_access_keys: int
     deleted_referrals: int
+    deleted_receipt_tasks: int
     removed_remote_clients: int
 
 
@@ -92,6 +94,17 @@ async def reset_user_for_trial(session: AsyncSession, telegram_id: int) -> Reset
         (
             await session.execute(
                 select(Order).where(Order.user_id == user.id)
+            )
+        ).scalars().all()
+    )
+    order_ids = [item.id for item in orders]
+    receipt_task_filters = [ReceiptTask.user_id == user.id]
+    if order_ids:
+        receipt_task_filters.append(ReceiptTask.order_id.in_(order_ids))
+    receipt_tasks = list(
+        (
+            await session.execute(
+                select(ReceiptTask).where(or_(*receipt_task_filters))
             )
         ).scalars().all()
     )
@@ -171,6 +184,7 @@ async def reset_user_for_trial(session: AsyncSession, telegram_id: int) -> Reset
     await session.execute(delete(AccessKey).where(or_(*access_key_filters)))
     await session.execute(delete(Device).where(Device.user_id == user.id))
     await session.execute(delete(Subscription).where(Subscription.user_id == user.id))
+    await session.execute(delete(ReceiptTask).where(or_(*receipt_task_filters)))
     await session.execute(delete(Order).where(Order.user_id == user.id))
     await session.delete(user)
     await session.commit()
@@ -183,5 +197,6 @@ async def reset_user_for_trial(session: AsyncSession, telegram_id: int) -> Reset
         deleted_devices=len(devices),
         deleted_access_keys=len(access_keys),
         deleted_referrals=len(referrals),
+        deleted_receipt_tasks=len(receipt_tasks),
         removed_remote_clients=removed_remote_clients,
     )
