@@ -1,5 +1,6 @@
 import json
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -27,12 +28,22 @@ class ThreeXUIProvider:
         self.password = password
         self.verify_ssl = verify_ssl
         self.timeout = timeout
+        parsed_base_url = urlparse(self.base_url)
+        self.origin = f"{parsed_base_url.scheme}://{parsed_base_url.netloc}"
 
         self._client = httpx.AsyncClient(
             base_url=self.base_url + "/",
             verify=self.verify_ssl,
             timeout=self.timeout,
             follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/plain, */*",
+            },
         )
         self._is_logged_in = False
 
@@ -47,7 +58,12 @@ class ThreeXUIProvider:
                 "password": self.password,
                 "twoFactorCode": "",
             },
-            headers={"Accept": "application/json"},
+            headers={
+                "Accept": "application/json",
+                "Origin": self.origin,
+                "Referer": self.base_url + "/",
+                "X-Requested-With": "XMLHttpRequest",
+            },
         )
 
         if response.status_code != 200:

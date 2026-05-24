@@ -1,5 +1,6 @@
 import base64
 from datetime import timezone
+import logging
 import re
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -32,6 +33,7 @@ from app.services.vpn_service import (
 from app.services.yookassa import YooKassaError
 
 app = FastAPI(title="Subscription Bot API")
+logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
@@ -141,6 +143,12 @@ async def build_subscription_payload(session: AsyncSession, subscription) -> tup
         if detail.startswith("SERVER_PANEL_CONFIG_MISSING:"):
             raise HTTPException(status_code=503, detail=detail) from exc
         raise
+    except Exception:
+        logger.warning(
+            "Failed to sync subscription %s with active VPN servers; serving cached payload",
+            subscription.id,
+            exc_info=True,
+        )
 
     servers = await get_active_servers(session)
     if not servers:
