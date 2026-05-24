@@ -110,8 +110,28 @@ def build_access_key_value(
     return subscription_url or uuid or vless_uri
 
 
+def resolve_panel_base_url(server_base_url: str | None) -> str:
+    fallback_base_url = settings.threexui_base_url.strip()
+    base_url = (server_base_url or fallback_base_url).strip()
+    if not base_url:
+        return ""
+
+    parsed_base_url = urlparse(base_url)
+    parsed_fallback_url = urlparse(fallback_base_url)
+    if (
+        parsed_base_url.scheme
+        and parsed_base_url.netloc
+        and not parsed_base_url.path.rstrip("/")
+        and parsed_fallback_url.path.rstrip("/")
+        and parsed_base_url.netloc == parsed_fallback_url.netloc
+    ):
+        return f"{base_url.rstrip('/')}{parsed_fallback_url.path.rstrip('/')}"
+
+    return base_url
+
+
 def build_provider_for_server(server: Server) -> tuple[ThreeXUIProvider, int]:
-    base_url = (server.panel_base_url or settings.threexui_base_url).strip()
+    base_url = resolve_panel_base_url(server.panel_base_url)
     username = (server.panel_username or settings.threexui_username).strip()
     password = (server.panel_password or settings.threexui_password).strip()
     inbound_id = server.panel_inbound_id or settings.threexui_inbound_id
