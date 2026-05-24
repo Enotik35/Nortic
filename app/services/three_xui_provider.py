@@ -30,9 +30,13 @@ class ThreeXUIProvider:
         self.timeout = timeout
         parsed_base_url = urlparse(self.base_url)
         self.origin = f"{parsed_base_url.scheme}://{parsed_base_url.netloc}"
+        self.base_path = parsed_base_url.path.rstrip("/")
+        self._client = self._build_client(self.base_url)
+        self._is_logged_in = False
 
-        self._client = httpx.AsyncClient(
-            base_url=self.base_url + "/",
+    def _build_client(self, base_url: str) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            base_url=base_url.rstrip("/") + "/",
             verify=self.verify_ssl,
             timeout=self.timeout,
             follow_redirects=True,
@@ -45,13 +49,12 @@ class ThreeXUIProvider:
                 "Accept": "application/json, text/plain, */*",
             },
         )
-        self._is_logged_in = False
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def login(self) -> None:
-        response = await self._client.post(
+    async def _login_request(self) -> httpx.Response:
+        return await self._client.post(
             "login",
             data={
                 "username": self.username,
@@ -66,9 +69,24 @@ class ThreeXUIProvider:
             },
         )
 
+    async def _switch_to_origin_base_url(self) -> None:
+        await self._client.aclose()
+        self.base_url = self.origin
+        self._client = self._build_client(self.base_url)
+
+    async def login(self) -> None:
+        response = await self._login_request()
+        tried_urls = [f"{self.base_url}/login"]
+
+        if response.status_code == 404 and self.base_path:
+            await self._switch_to_origin_base_url()
+            response = await self._login_request()
+            tried_urls.append(f"{self.base_url}/login")
+
         if response.status_code != 200:
             raise ThreeXUIAuthError(
-                f"3x-ui login failed with status {response.status_code}: {response.text}"
+                f"3x-ui login failed with status {response.status_code} "
+                f"at {', '.join(tried_urls)}: {response.text}"
             )
 
         try:
